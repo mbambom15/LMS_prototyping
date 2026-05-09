@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            display: block;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px;
+        }
+
+        input[type="button"] {
+            width: 100%;
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        button {
+            width: 100%;
+            padding: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <form action="/login" method="POST">   <!-- action and method added -->
+        <div class="container">
+            <label>Nkanyezi Academy</label>
+
+            <label for="uname">Username:</label>
+            <input type="text" placeholder="Enter Username" name="uname" required>
+
+            <label for="psw">Password:</label>
+            <input type="password" placeholder="Enter Password" name="psw" required>
+
+            <input type="submit" value="login"/>   <!-- changed from button to submit -->
+        </div>
+
+        <div class="container">
+            <button type="button"><a href="/forgot-password">Forgot password?</a></button>
+        </div>
+    </form>
+</body>
+
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Tracker</title>
+    <style>
+        header {
+            background-color: #333;
+            color: white;
+            padding: 10px;
+        }
+
+        main {
+            padding: 20px;
+            min-height: 80vh;
+        }
+
+        footer {
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+
+        nav ul {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #datetime {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        #clock {
+            font-size: 3rem;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+            font-family: monospace;
+        }
+
+        #date {
+            font-size: 1rem;
+            color: #666;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <nav id="nav-header">
+            <ul>
+                <li>Nkanyezi Attendance Tracker</li>
+                <li>{User Logged}</li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div id="datetime">
+            <div id="clock"></div>
+            <div id="date"></div>
+        </div>
+        <button onclick="SignIn()">Sign-In</button>
+        <button onclick="SignOut()">Sign-Out</button>
+    </main>
+    
+    <footer>
+        Attendance tracker 2026 HospiTrack Information Systems &copy;
+    </footer>
+</body>
+
+</html>
+<script src="attendance.js"></script>

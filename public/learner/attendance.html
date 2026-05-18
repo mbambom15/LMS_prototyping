@@ -21,26 +21,26 @@
     <main>
         <!-- PERMISSION MODAL (popup) -->
         <div id="permission-gate">
-            <div class="perm-card">
-                <div class="perm-icon">📍</div>
-                <div class="perm-title">Location permission required</div>
+            <section class="perm-card">
+                <div class="perm-icon" aria-hidden="true">📍</div>
+                <h1 class="perm-title">Location permission required</h1>
                 <p class="perm-desc">
                     Nkanyezi LMS requires GPS to verify onsite attendance. Your location is only recorded at sign-in and sign-out.
                 </p>
-                <div class="perm-note">
-                     Onsite window: <strong>07:00 – 09:00</strong> sign-in<br>
-                     Sign-out deadline: <strong>15:00</strong>
-                </div>
+                <aside class="perm-note">
+                    Onsite window: <strong>07:00 – 09:00</strong> sign-in<br>
+                    Sign-out deadline: <strong>15:00</strong>
+                </aside>
                 <div class="perm-actions">
                     <button class="btn btn-accent" id="allow-location-btn">Allow location access</button>
                     <button class="btn btn-danger" id="deny-location-btn">Deny — disable attendance tracking</button>
                 </div>
-            </div>
+            </section>
         </div>
 
         <!-- DENIED INFO (when user blocks location) -->
-        <div id="denied-state">
-            <div class="denied-title">Location access denied</div>
+        <section id="denied-state">
+            <h2 class="denied-title">Location access denied</h2>
             <p class="denied-msg">
                 Attendance tracking is <strong>disabled</strong>. Without location verification, sign-in/out cannot be recorded.
             </p>
@@ -51,7 +51,7 @@
                 3. Reload this page
             </div>
             <button class="btn btn-ghost" id="retry-perm-btn">↺ Try again</button>
-        </div>
+        </section>
 
         <!-- realtime clock -->
         <div id="datetime">
@@ -61,32 +61,44 @@
 
         <!-- stats grid -->
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-val stat-present" id="stat-present"></div><div class="stat-label">Days present</div></div>
-            <div class="stat-card"><div class="stat-val stat-absent" id="stat-absent"></div><div class="stat-label">Days absent</div></div>
-            <div class="stat-card"><div class="stat-val stat-late" id="stat-late"></div><div class="stat-label">Days late</div></div>
-            <div class="stat-card"><div class="stat-val stat-neutral" id="stat-rate">0%</div><div class="stat-label">Attendance rate</div></div>
+            <article class="stat-card">
+                <div class="stat-val stat-present" id="stat-present"></div>
+                <div class="stat-label">Days present</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-val stat-absent" id="stat-absent"></div>
+                <div class="stat-label">Days absent</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-val stat-late" id="stat-late"></div>
+                <div class="stat-label">Days late</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-val stat-neutral" id="stat-rate">0%</div>
+                <div class="stat-label">Attendance rate</div>
+            </article>
         </div>
 
         <!-- scheduled days (tue + thu) -->
         <div class="schedule-notice">
             <div class="sched-text">📅 Your scheduled days</div>
-            <div class="sched-days" id="sched-days-display"></div>
+            <div id="sched-days-display"></div>
         </div>
 
         <!-- time windows grid -->
         <div class="time-windows">
-            <div class="time-window" id="tw-signin">
-                <div class="tw-label">Sign-in window</div>
+            <article class="time-window" id="tw-signin">
+                <h3 class="tw-label">Sign-in window</h3>
                 <div class="tw-time">07:00 – 09:00</div>
                 <div class="tw-deadline">Deadline: <span class="cutoff">09:00</span></div>
                 <div class="tw-recorded" id="signin-recorded" style="display:none"></div>
-            </div>
-            <div class="time-window" id="tw-signout">
-                <div class="tw-label">Sign-out window</div>
+            </article>
+            <article class="time-window" id="tw-signout">
+                <h3 class="tw-label">Sign-out window</h3>
                 <div class="tw-time">14:30 – 15:00</div>
                 <div class="tw-deadline">Deadline: <span class="cutoff">15:00</span></div>
                 <div class="tw-recorded" id="signout-recorded" style="display:none"></div>
-            </div>
+            </article>
         </div>
 
         <!-- action buttons -->
@@ -96,18 +108,20 @@
         </div>
 
         <!-- attendance log -->
-        <div class="log-section">
+        <section class="log-section">
             <div class="log-header">
-                <div class="log-title">📋 Attendance history</div>
+                <h2 class="log-title">📋 Attendance history</h2>
                 <div class="view-only-tag">View only</div>
             </div>
             <table class="log-table">
                 <thead>
-                    <tr><th>Date</th><th>Session</th><th>Sign-in</th><th>Sign-out</th><th>Location</th><th>Status</th></tr>
+                    <tr>
+                        <th>Date</th><th>Session</th><th>Sign-in</th><th>Sign-out</th><th>Location</th><th>Status</th>
+                    </tr>
                 </thead>
                 <tbody id="log-tbody"></tbody>
             </table>
-        </div>
+        </section>
     </main>
 
     <footer>

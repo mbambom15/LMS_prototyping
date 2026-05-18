@@ -3,79 +3,117 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Attendance Tracker</title>
-    <style>
-        header {
-            background-color: #333;
-            color: white;
-            padding: 10px;
-        }
-
-        main {
-            padding: 20px;
-            min-height: 80vh;
-        }
-
-        footer {
-            background-color: #333;
-            color: white;
-            padding: 10px;
-            text-align: center;
-        }
-
-        nav ul {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            list-style: none;
-            margin: 0;
-            padding: 0;
-        }
-
-        #datetime {
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-
-        #clock {
-            font-size: 3rem;
-            font-weight: bold;
-            letter-spacing: 0.05em;
-            font-family: monospace;
-        }
-
-        #date {
-            font-size: 1rem;
-            color: #666;
-            margin-top: 4px;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Nkanyezi Geo Attendance Tracker</title>
+    <link rel="stylesheet" href="attendance.css">
 </head>
 
 <body>
     <header>
         <nav id="nav-header">
             <ul>
-                <li>Nkanyezi Attendance Tracker</li>
-                <li>{User Logged}</li>
+                <li>Nkanyezi Geolocation Attendance Tracker</li>
+                <li>{User.logged In}</li>
             </ul>
         </nav>
     </header>
 
     <main>
-        <div id="datetime">
-            <div id="clock"></div>
-            <div id="date"></div>
+        <!-- PERMISSION MODAL (popup) -->
+        <div id="permission-gate">
+            <div class="perm-card">
+                <div class="perm-icon">📍</div>
+                <div class="perm-title">Location permission required</div>
+                <p class="perm-desc">
+                    Nkanyezi LMS requires GPS to verify onsite attendance. Your location is only recorded at sign-in and sign-out.
+                </p>
+                <div class="perm-note">
+                     Onsite window: <strong>07:00 – 09:00</strong> sign-in<br>
+                     Sign-out deadline: <strong>15:00</strong>
+                </div>
+                <div class="perm-actions">
+                    <button class="btn btn-accent" id="allow-location-btn">Allow location access</button>
+                    <button class="btn btn-danger" id="deny-location-btn">Deny — disable attendance tracking</button>
+                </div>
+            </div>
         </div>
-        <button onclick="SignIn()">Sign-In</button>
-        <button onclick="SignOut()">Sign-Out</button>
+
+        <!-- DENIED INFO (when user blocks location) -->
+        <div id="denied-state">
+            <div class="denied-title">Location access denied</div>
+            <p class="denied-msg">
+                Attendance tracking is <strong>disabled</strong>. Without location verification, sign-in/out cannot be recorded.
+            </p>
+            <div class="denied-steps">
+                <strong>To enable tracking, grant browser permission:</strong><br>
+                1. Click the 🔒 lock icon in address bar<br>
+                2. Set <em>Location</em> to <strong>Allow</strong><br>
+                3. Reload this page
+            </div>
+            <button class="btn btn-ghost" id="retry-perm-btn">↺ Try again</button>
+        </div>
+
+        <!-- realtime clock -->
+        <div id="datetime">
+            <div id="clock">--:--:--</div>
+            <div id="date">--</div>
+        </div>
+
+        <!-- stats grid -->
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-val stat-present" id="stat-present"></div><div class="stat-label">Days present</div></div>
+            <div class="stat-card"><div class="stat-val stat-absent" id="stat-absent"></div><div class="stat-label">Days absent</div></div>
+            <div class="stat-card"><div class="stat-val stat-late" id="stat-late"></div><div class="stat-label">Days late</div></div>
+            <div class="stat-card"><div class="stat-val stat-neutral" id="stat-rate">0%</div><div class="stat-label">Attendance rate</div></div>
+        </div>
+
+        <!-- scheduled days (tue + thu) -->
+        <div class="schedule-notice">
+            <div class="sched-text">📅 Your scheduled days</div>
+            <div class="sched-days" id="sched-days-display"></div>
+        </div>
+
+        <!-- time windows grid -->
+        <div class="time-windows">
+            <div class="time-window" id="tw-signin">
+                <div class="tw-label">Sign-in window</div>
+                <div class="tw-time">07:00 – 09:00</div>
+                <div class="tw-deadline">Deadline: <span class="cutoff">09:00</span></div>
+                <div class="tw-recorded" id="signin-recorded" style="display:none"></div>
+            </div>
+            <div class="time-window" id="tw-signout">
+                <div class="tw-label">Sign-out window</div>
+                <div class="tw-time">14:30 – 15:00</div>
+                <div class="tw-deadline">Deadline: <span class="cutoff">15:00</span></div>
+                <div class="tw-recorded" id="signout-recorded" style="display:none"></div>
+            </div>
+        </div>
+
+        <!-- action buttons -->
+        <div class="action-row">
+            <button class="btn btn-accent btn-large" id="signin-btn">↓ Sign in</button>
+            <button class="btn btn-ghost btn-large" id="signout-btn" disabled>↑ Sign out</button>
+        </div>
+
+        <!-- attendance log -->
+        <div class="log-section">
+            <div class="log-header">
+                <div class="log-title">📋 Attendance history</div>
+                <div class="view-only-tag">View only</div>
+            </div>
+            <table class="log-table">
+                <thead>
+                    <tr><th>Date</th><th>Session</th><th>Sign-in</th><th>Sign-out</th><th>Location</th><th>Status</th></tr>
+                </thead>
+                <tbody id="log-tbody"></tbody>
+            </table>
+        </div>
     </main>
-    
+
     <footer>
-        Attendance tracker 2026 HospiTrack Information Systems &copy;
+        Attendance tracker 2026 · HospiTrack Information Systems ©
     </footer>
+        
 </body>
 
 </html>
-<script src="attendance.js"></script>

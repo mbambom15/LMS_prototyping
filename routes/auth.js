@@ -72,6 +72,8 @@ function redirectToDashboard(role, res) {
   switch (role) {
     case 'admin':
       return res.redirect('/admin/dashboard.html');
+    case 'learner':
+      return res.redirect('public/learner/ldashboard.html');
     // future roles:
     // case 'facilitator': return res.redirect('/facilitator/dashboard.html');
     // case 'learner': return res.redirect('/learner/dashboard.html');

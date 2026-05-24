@@ -3,72 +3,220 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Nkanyezi Academy — Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --amber:   #c97a2f;
+            --amber-lt: #e8a95a;
+            --dark:    #0d0b09;
+            --card-bg: rgba(10, 8, 6, 0.72);
+            --border:  rgba(201, 122, 47, 0.35);
+            --text:    #f0ece6;
+            --muted:   #a89880;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            font-family: 'DM Sans', sans-serif;
+            background: var(--dark);
             min-height: 100vh;
-            margin: 0;
+            display: flex;
+            align-items: stretch;
         }
 
-        form {
+    
+        .bg {
+            position: fixed;
+            inset: 0;
+            background-image: url('background.webp');
+            background-size: cover;
+            background-position: center right;
+            z-index: 0;
+        }
+        .bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                105deg,
+                rgba(10,8,6,0.92) 0%,
+                rgba(10,8,6,0.80) 42%,
+                rgba(10,8,6,0.18) 100%
+            );
+        }
+
+      
+        .page {
+            position: relative;
+            z-index: 1;
             display: flex;
-            flex-direction: column;
-            gap: 12px;
+            align-items: center;
             width: 100%;
-            max-width: 320px;
+            padding: 40px 6vw;
         }
 
-        .container {
+    
+        .card {
+            width: 100%;
+            max-width: 380px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 48px 40px 44px;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 8px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04) inset;
+            animation: fadeUp 0.55s cubic-bezier(.22,.68,0,1.2) both;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+       
+        .brand {
+            margin-bottom: 36px;
+        }
+        .brand-label {
+            font-size: 10px;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--amber);
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .brand-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 26px;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.15;
+        }
+
+        
+        .form-group {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
+            margin-bottom: 18px;
         }
 
         label {
-            display: block;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-weight: 500;
         }
 
         input[type="text"],
         input[type="password"] {
             width: 100%;
-            box-sizing: border-box;
-            padding: 8px;
+            padding: 11px 14px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(201,122,47,0.25);
+            border-radius: 3px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        input[type="text"]::placeholder,
+        input[type="password"]::placeholder {
+            color: rgba(168,152,128,0.45);
+        }
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            border-color: var(--amber);
+            background: rgba(255,255,255,0.08);
         }
 
-        input[type="button"] {
+        .btn-login {
             width: 100%;
-            padding: 8px;
+            padding: 12px;
+            margin-top: 8px;
+            background: var(--amber);
+            border: none;
+            border-radius: 3px;
+            color: #0d0b09;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
             cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
         }
+        .btn-login:hover  { background: var(--amber-lt); }
+        .btn-login:active { transform: scale(0.99); }
 
-        button {
-            width: 100%;
-            padding: 8px;
-            cursor: pointer;
+        .forgot {
+            margin-top: 18px;
+            text-align: center;
+        }
+        .forgot a {
+            font-size: 12px;
+            color: var(--muted);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .forgot a:hover { color: var(--amber-lt); }
+
+       
+        @media (max-width: 600px) {
+            .page {
+                justify-content: center;
+                padding: 24px 20px;
+                align-items: center;
+                min-height: 100vh;
+            }
+            .bg::after {
+                background: rgba(10,8,6,0.82);
+            }
+            .card {
+                padding: 36px 28px 32px;
+            }
         }
     </style>
 </head>
 <body>
-    <form action="/login" method="POST">   
-        <div class="container">
-            <label>Nkanyezi Academy</label>
 
-            <label for="uname">Username:</label>
-            <input type="text" placeholder="Enter Username" name="uname" required>
+    <div class="bg"></div>
 
-            <label for="psw">Password:</label>
-            <input type="password" placeholder="Enter Password" name="psw" required>
+    <div class="page">
+        <div class="card">
+            <header class="brand">
+                <h1 class="brand-name">Nkanyezi Academy</h1>
+            </header>
 
-            <input type="submit" value="login"/>   <!-- changed from button to submit -->
+            <form action="/login" method="POST">
+                <div class="form-group">
+                    <label for="uname">Username</label>
+                    <input type="text" id="uname" name="uname" placeholder="Enter username" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="psw">Password</label>
+                    <input type="password" id="psw" name="psw" placeholder="Enter password" required>
+                </div>
+
+                <button type="submit" class="btn-login">Sign In</button>
+
+                <div class="forgot">
+                    <a href="/forgot-password">Forgot your password?</a>
+                </div>
+            </form>
         </div>
+    </div>
 
-        <div class="container">
-            <button type="button"><a href="/forgot-password">Forgot password?</a></button>
-        </div>
-    </form>
 </body>
-
 </html>

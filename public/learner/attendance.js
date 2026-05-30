@@ -1,306 +1,405 @@
-function updateDateTime() {
-    const now = new Date();
-    const options = { timeZone: "Africa/Johannesburg" };
-
-    const time = now.toLocaleTimeString("en-ZA", { ...options, hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const date = now.toLocaleDateString("en-ZA", { ...options, weekday: "long", day: "numeric", month: "long", year: "numeric" });
-
-    document.getElementById("clock").textContent = time;
-    document.getElementById("date").textContent = date;
-}
-
-setInterval(updateDateTime, 1000);
-updateDateTime();
-
-// SpecCon reference point (your coordinates)
-const SPECCON_LAT = -25.82731638243808;
-const SPECCON_LNG = 28.2034515438192;
-const ALLOWED_RADIUS_M = 50
-
-    ;
-//this is going to be the javascript to build ui interactiveness
-// ---------- CONFIGURATION ----------
+// ── CONFIGURATION ──────────────────────────────────────────────
 const CONFIG = {
-    scheduledDays: [1, 3],     // Tuesday (1) + Thursday (3) -> Monday=0
-    venue: { lat: -25.82731638243808, lng: 28.2034515438192 },
-    maxGeoKm: 0.2,
-    signInDeadlineMin: 9 * 60,    // 09:00
-    signOutDeadlineMin: 15 * 60,  // 15:00
-    signOutOpenMin: 14 * 60 + 30, // 14:30
-    sessionName: 'Data Science 101'
+    scheduledDays:    [1, 3],          // Tue=1, Thu=3  (Mon=0)
+    venue: {
+        lat: -25.82731638243808,
+        lng:  28.2034515438192
+    },
+    maxGeoKm:         0.05,            // 50 m radius
+    lateThresholdMin: 7 * 60 + 30,    // 07:30 → late
+    signInOpenMin:    7 * 60,          // 07:00 sign-in opens
+    signOutOpenMin:   14 * 60 + 30,   // 14:30 sign-out opens
+    signOutCloseMin:  15 * 60,        // 15:00 sign-out closes
+    sessionName:      'Data Science 101'
 };
 
 const DAYS_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-// Global state
+// ── STATE ──────────────────────────────────────────────────────
 let permissionGranted = false;
-let signedIn = false;
-let signedOut = false;
-let signInTimeObj = null;
-let signOutTimeObj = null;
-let signInCoords = null;
-let signOutCoords = null;
-let isLateFlag = false;
+let signedIn          = false;
+let signedOut         = false;
+let signInTimeObj     = null;
+let signOutTimeObj    = null;
+let isLateFlag        = false;
+let currentUser       = null; // set after login/session check
 
-// attendance log (mock historical)
-let attendanceLog = []
+// ── MOCK HISTORY (replace with API call once backend ready) ────
+let attendanceLog = [];
 
-// helper: minutes since midnight
+// ── HELPERS ───────────────────────────────────────────────────
 function getCurrentMinutes() {
-    const now = new Date();
-    return now.getHours() * 60 + now.getMinutes();
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
 }
 
-// format HH:MM
 function formatTime(date) {
     if (!date) return '—';
     return date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-// haversine distance
-function haversine(lat1, lng1, lat2, lng2) {
+function haversineKm(lat1, lng1, lat2, lng2) {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    const a = Math.sin(dLat / 2) ** 2
+            + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Update UI buttons depending on state & time
+// ── CLOCK ─────────────────────────────────────────────────────
+function initClock() {
+    function tick() {
+        const d = new Date();
+        document.getElementById('clock').textContent =
+            d.toLocaleTimeString('en-ZA', { hour12: false });
+        document.getElementById('date').textContent =
+            d.toLocaleDateString('en-ZA', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    }
+    tick();
+    setInterval(tick, 1000);
+}
+
+// ── USER DISPLAY ──────────────────────────────────────────────
+function setUserDisplay(name) {
+    const initials = name
+        ? name.split(' ').slice(0,2).map(p => p[0]).join('').toUpperCase()
+        : '?';
+    document.getElementById('user-display-name').textContent = name || 'Learner';
+    const av = document.getElementById('user-avatar-initials');
+    if (av) av.textContent = initials;
+}
+
+async function fetchCurrentUser() {
+    try {
+        const res = await fetch('/api/me');
+        if (res.ok) {
+            const data = await res.json();
+            currentUser = data;
+            setUserDisplay(`${data.name} ${data.surname}`);
+            loadAttendanceHistory();
+        } else {
+            setUserDisplay('Learner');
+        }
+    } catch {
+        setUserDisplay('Learner');
+    }
+}
+
+// ── SCHEDULED DAYS CHIPS ─────────────────────────────────────
+function renderScheduledDays() {
+    const todayDow = (new Date().getDay() + 6) % 7; // Mon=0
+    const container = document.getElementById('sched-days-display');
+    container.innerHTML = DAYS_NAMES.map((day, idx) => {
+        const active  = CONFIG.scheduledDays.includes(idx);
+        const isToday = (idx === todayDow);
+        const outline = (isToday && active) ? ' style="outline:2px solid #10b981;outline-offset:2px;"' : '';
+        return `<span class="day-chip ${active ? '' : 'off'}"${outline}>${day.slice(0,3)}${isToday ? ' ·today' : ''}</span>`;
+    }).join('');
+}
+
+// ── BUTTON STATE ──────────────────────────────────────────────
 function updateButtonsUI() {
-    const signinBtn = document.getElementById('signin-btn');
+    const signinBtn  = document.getElementById('signin-btn');
     const signoutBtn = document.getElementById('signout-btn');
     if (!permissionGranted) {
-        signinBtn.disabled = true;
+        signinBtn.disabled  = true;
         signoutBtn.disabled = true;
         return;
     }
-    const nowMin = getCurrentMinutes();
-    const canSignIn = (!signedIn && nowMin <= CONFIG.signInDeadlineMin && nowMin >= 7 * 60);
-    const signOutWindowOpen = (nowMin >= CONFIG.signOutOpenMin && nowMin <= CONFIG.signOutDeadlineMin);
-    if (signedIn && !signedOut) {
-        signinBtn.disabled = true;
-        signoutBtn.disabled = !signOutWindowOpen;
-    } else if (signedOut || (signedIn && signedOut)) {
-        signinBtn.disabled = true;
+    const nowMin           = getCurrentMinutes();
+    const signInOpen       = nowMin >= CONFIG.signInOpenMin;   // no hard close
+    const signOutWindowNow = nowMin >= CONFIG.signOutOpenMin && nowMin <= CONFIG.signOutCloseMin;
+
+    if (signedIn && signedOut) {
+        signinBtn.disabled  = true;
         signoutBtn.disabled = true;
+    } else if (signedIn) {
+        signinBtn.disabled  = true;
+        signoutBtn.disabled = !signOutWindowNow;
+        // If sign-out window closed without sign-out, disable permanently
+        if (nowMin > CONFIG.signOutCloseMin) signoutBtn.disabled = true;
     } else {
-        signinBtn.disabled = !canSignIn;
+        signinBtn.disabled  = !signInOpen;   // stays open all day — late alert handles it
         signoutBtn.disabled = true;
     }
-
-    // extra: if deadline passed disable signin forever
-    if (nowMin > CONFIG.signInDeadlineMin && !signedIn) signinBtn.disabled = true;
-    if (nowMin > CONFIG.signOutDeadlineMin && signedIn && !signedOut) signoutBtn.disabled = true;
 }
 
-// update stats based on scheduled days only
+// ── LATE ALERT BANNER ─────────────────────────────────────────
+function showLateBanner(msg) {
+    const banner = document.getElementById('late-alert-banner');
+    const msgEl  = document.getElementById('late-alert-msg');
+    msgEl.innerHTML = msg;
+    banner.style.display = 'flex';
+}
+
+function hideLateBanner() {
+    document.getElementById('late-alert-banner').style.display = 'none';
+}
+
+// ── STATS ─────────────────────────────────────────────────────
 function updateStats() {
-    const scheduledEntries = attendanceLog.filter(e => e.scheduled === true);
-    const present = scheduledEntries.filter(e => e.status === 'present').length;
-    const late = scheduledEntries.filter(e => e.status === 'late').length;
-    const absent = scheduledEntries.filter(e => e.status === 'absent').length;
-    const total = scheduledEntries.length;
-    const rate = total ? Math.round(((present + late) / total) * 100) : 0;
-    document.getElementById('stat-present').innerText = present;
-    document.getElementById('stat-absent').innerText = absent;
-    document.getElementById('stat-late').innerText = late;
-    document.getElementById('stat-rate').innerText = rate + '%';
+    const sched   = attendanceLog.filter(e => e.scheduled);
+    const present = sched.filter(e => e.status === 'present').length;
+    const late    = sched.filter(e => e.status === 'late').length;
+    const absent  = sched.filter(e => e.status === 'absent').length;
+    const total   = sched.length;
+    const rate    = total ? Math.round(((present + late) / total) * 100) : 0;
+    document.getElementById('stat-present').textContent = present;
+    document.getElementById('stat-absent').textContent  = absent;
+    document.getElementById('stat-late').textContent    = late;
+    document.getElementById('stat-rate').textContent    = rate + '%';
 }
 
-// render attendance log table
+// ── LOG TABLE ─────────────────────────────────────────────────
 function renderLog() {
     const tbody = document.getElementById('log-tbody');
-    tbody.innerHTML = attendanceLog.map(entry => {
-        let statusClass = '';
-        let statusLabel = '';
-        if (entry.status === 'present') { statusClass = 'badge-present'; statusLabel = 'Present'; }
-        else if (entry.status === 'late') { statusClass = 'badge-late'; statusLabel = 'Late'; }
-        else { statusClass = 'badge-absent'; statusLabel = 'Absent'; }
-
-        const locHtml = (entry.lat && entry.lng) ? `<span class="loc-chip">${entry.lat}, ${entry.lng}</span>` : '<span style="color:#94a3b8;">—</span>';
-        const rowClass = entry.scheduled ? '' : 'unscheduled-row';
-        return `<tr class="${rowClass}">
-                    <td>${entry.date}</td>
-                    <td>${entry.session}</td>
-                    <td>${entry.signIn || '—'}</td>
-                    <td>${entry.signOut || '—'}</td>
-                    <td>${locHtml}</td>
-                    <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-                </tr>`;
+    if (!attendanceLog.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="log-empty">No attendance records yet.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = attendanceLog.map(e => {
+        const cls = e.status === 'present' ? 'badge-present' : e.status === 'late' ? 'badge-late' : 'badge-absent';
+        const lbl = e.status.charAt(0).toUpperCase() + e.status.slice(1);
+        const loc = (e.lat && e.lng)
+            ? `<span class="loc-chip">${e.lat}, ${e.lng}</span>`
+            : '<span style="color:#334155">—</span>';
+        return `<tr class="${e.scheduled ? '' : 'unscheduled-row'}">
+            <td>${e.date}</td>
+            <td>${e.session}</td>
+            <td>${e.signIn  || '—'}</td>
+            <td>${e.signOut || '—'}</td>
+            <td>${loc}</td>
+            <td><span class="status-badge ${cls}">${lbl}</span></td>
+        </tr>`;
     }).join('');
 }
 
-// show scheduled days chips
-function renderScheduledDays() {
-    const todayDow = (new Date().getDay() + 6) % 7; // mon=0
-    const container = document.getElementById('sched-days-display');
-    container.innerHTML = DAYS_NAMES.slice(0, 5).map((day, idx) => {
-        const active = CONFIG.scheduledDays.includes(idx);
-        const isToday = (idx === todayDow);
-        let extra = '';
-        if (isToday && active) extra = ' style="outline:2px solid #0f7b4c; outline-offset:2px;"';
-        return `<span class="day-chip ${active ? '' : 'off'}" ${extra}>${day.slice(0, 3)}${isToday ? ' (today)' : ''}</span>`;
-    }).join('');
+// Load from API
+async function loadAttendanceHistory() {
+    try {
+        const res = await fetch('/api/attendance/history');
+        if (res.ok) {
+            const data = await res.json();
+            attendanceLog = data.records || [];
+            renderLog();
+            updateStats();
+        }
+    } catch {
+        // Keep mock data if API unavailable
+        renderLog();
+        updateStats();
+    }
 }
 
-// record sign in with location
+// ── SIGN IN ───────────────────────────────────────────────────
 function doSignIn() {
-    if (!permissionGranted) return;
-    if (signedIn) return;
+    if (!permissionGranted || signedIn) return;
     const btn = document.getElementById('signin-btn');
-    btn.innerText = '📍 Locating...';
+    btn.textContent = '📍 Locating…';
     btn.disabled = true;
-    navigator.geolocation.getCurrentPosition(position => {
-        const now = new Date();
-        signInTimeObj = now;
-        signInCoords = position.coords;
-        const dist = haversine(position.coords.latitude, position.coords.longitude, CONFIG.venue.lat, CONFIG.venue.lng);
-        const verified = dist <= CONFIG.maxGeoKm;
-        const minutesNow = now.getHours() * 60 + now.getMinutes();
-        const lateArrival = minutesNow > CONFIG.signInDeadlineMin;
-        isLateFlag = lateArrival;
-        signedIn = true;
 
-        const timeStr = formatTime(now);
+    navigator.geolocation.getCurrentPosition(position => {
+        const now    = new Date();
+        signInTimeObj = now;
+        const nowMin  = now.getHours() * 60 + now.getMinutes();
+        const dist    = haversineKm(position.coords.latitude, position.coords.longitude,
+                                     CONFIG.venue.lat, CONFIG.venue.lng);
+        const onSite  = dist <= CONFIG.maxGeoKm;
+        isLateFlag    = nowMin > CONFIG.lateThresholdMin;
+
+        signedIn = true;
+        btn.textContent = '↓ Sign in';
+
+        // ── LATE ALERT (soft warning, not a block) ──
+        if (isLateFlag) {
+            const lateMsg = nowMin > CONFIG.signInOpenMin
+                ? `You signed in at <strong>${formatTime(now)}</strong> — this will be recorded as <strong>Late</strong>.`
+                : `Sign-in registered at <strong>${formatTime(now)}</strong>.`;
+            showLateBanner(lateMsg);
+        }
+
+        // ── OFF-SITE WARNING ──
+        if (!onSite) {
+            const distM = Math.round(dist * 1000);
+            showLateBanner(`⚠ You appear to be <strong>${distM}m from the venue</strong> (max 50m). Your attendance will still be recorded but marked as unverified.`);
+        }
+
+        // ── UPDATE SIGN-IN CARD ──
         const recordedDiv = document.getElementById('signin-recorded');
         recordedDiv.style.display = 'block';
-        recordedDiv.innerHTML = `✓ ${timeStr} · ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)} ${verified ? '✓ On-site' : '⚠ Distance ' + dist.toFixed(2) + 'km'}`;
-        document.getElementById('tw-signin').style.border = '1px solid #0f7b4c';
-        btn.innerText = '↓ Sign in';
-        updateButtonsUI();
+        recordedDiv.innerHTML = `✓ ${formatTime(now)} · ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}<br>${onSite ? '✅ On-site verified' : `⚠ ${Math.round(dist*1000)}m from venue`}${isLateFlag ? ' · <span style="color:#f59e0b">Late</span>' : ''}`;
+        document.getElementById('tw-signin').style.borderColor = '#10b981';
 
-        // auto update status later
+        // ── POST TO BACKEND ──
+        postSignIn(position.coords, now, onSite, isLateFlag);
+
+        updateButtonsUI();
     }, (err) => {
-        btn.innerText = '↓ Sign in';
+        btn.textContent = '↓ Sign in';
         btn.disabled = false;
-        alert('Location error: could not verify sign-in. Check GPS permissions.');
-    }, { enableHighAccuracy: true, timeout: 10000 });
+        alert('Location error: ' + (err.message || 'Could not read GPS. Check permissions.'));
+    }, { enableHighAccuracy: true, timeout: 12000 });
 }
 
+async function postSignIn(coords, timestamp, geoVerified, isLate) {
+    try {
+        await fetch('/api/attendance/signin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                geo_latitude:  coords.latitude,
+                geo_longitude: coords.longitude,
+                geo_verified:  geoVerified,
+                check_in_time: timestamp.toISOString(),
+                is_late:       isLate,
+                session_name:  CONFIG.sessionName
+            })
+        });
+    } catch (e) {
+        console.warn('Sign-in API call failed (offline?)', e);
+    }
+}
+
+// ── SIGN OUT ──────────────────────────────────────────────────
 function doSignOut() {
     if (!permissionGranted || !signedIn || signedOut) return;
     const btn = document.getElementById('signout-btn');
-    btn.innerText = '📍 Finalizing...';
+    btn.textContent = '📍 Finalizing…';
     btn.disabled = true;
-    navigator.geolocation.getCurrentPosition(pos => {
-        const now = new Date();
-        signOutTimeObj = now;
-        signOutCoords = pos.coords;
-        signedOut = true;
 
-        const signInTimeStr = formatTime(signInTimeObj);
-        const signOutTimeStr = formatTime(now);
-        const statusFinal = isLateFlag ? 'late' : 'present';
-        const todayDateStr = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
-        // push new log entry
+    navigator.geolocation.getCurrentPosition(pos => {
+        const now          = new Date();
+        signOutTimeObj     = now;
+        signedOut          = true;
+
+        const signInStr    = formatTime(signInTimeObj);
+        const signOutStr   = formatTime(now);
+        const statusFinal  = isLateFlag ? 'late' : 'present';
+        const dateStr      = now.toLocaleDateString('en-ZA', { day:'numeric', month:'short', year:'numeric' });
+
         attendanceLog.unshift({
-            date: todayDateStr,
-            session: CONFIG.sessionName,
-            signIn: signInTimeStr,
-            signOut: signOutTimeStr,
-            lat: pos.coords.latitude.toFixed(4),
-            lng: pos.coords.longitude.toFixed(4),
-            status: statusFinal,
+            date:      dateStr,
+            session:   CONFIG.sessionName,
+            signIn:    signInStr,
+            signOut:   signOutStr,
+            lat:       pos.coords.latitude.toFixed(4),
+            lng:       pos.coords.longitude.toFixed(4),
+            status:    statusFinal,
             scheduled: true
         });
+
         renderLog();
         updateStats();
 
-        document.getElementById('signout-recorded').style.display = 'block';
-        document.getElementById('signout-recorded').innerHTML = `✓ ${signOutTimeStr} · recorded`;
-        document.getElementById('tw-signout').style.border = '1px solid #0f7b4c';
-        btn.innerText = '↑ Sign out';
+        const outDiv = document.getElementById('signout-recorded');
+        outDiv.style.display = 'block';
+        outDiv.innerHTML = `✓ ${signOutStr} · recorded`;
+        document.getElementById('tw-signout').style.borderColor = '#10b981';
+
+        btn.textContent = '↑ Sign out';
         updateButtonsUI();
+
+        postSignOut(pos.coords, now);
+        hideLateBanner();
     }, () => {
-        btn.innerText = '↑ Sign out';
+        btn.textContent = '↑ Sign out';
         btn.disabled = false;
-        alert('Could not get location for sign-out');
-    });
+        alert('Could not get location for sign-out. Please try again.');
+    }, { enableHighAccuracy: true, timeout: 12000 });
 }
 
-// ---------- LOCATION MODAL HANDLING ----------
+async function postSignOut(coords, timestamp) {
+    try {
+        await fetch('/api/attendance/signout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                geo_latitude:   coords.latitude,
+                geo_longitude:  coords.longitude,
+                check_out_time: timestamp.toISOString(),
+                session_name:   CONFIG.sessionName
+            })
+        });
+    } catch (e) {
+        console.warn('Sign-out API call failed (offline?)', e);
+    }
+}
+
+// ── PERMISSION FLOW ───────────────────────────────────────────
 function requestLocationPermission() {
-    const permBtn = document.getElementById('allow-location-btn');
-    permBtn.innerText = 'Requesting...';
-    permBtn.disabled = true;
+    const btn = document.getElementById('allow-location-btn');
+    btn.textContent = 'Requesting…';
+    btn.disabled = true;
+
     navigator.geolocation.getCurrentPosition(
-        (position) => {
+        () => {
             permissionGranted = true;
             document.getElementById('permission-gate').style.display = 'none';
-            document.getElementById('denied-state').style.display = 'none';
+            document.getElementById('denied-state').style.display    = 'none';
             updateButtonsUI();
         },
-        (error) => {
+        () => {
             permissionGranted = false;
             document.getElementById('permission-gate').style.display = 'none';
-            document.getElementById('denied-state').style.display = 'block';
+            document.getElementById('denied-state').style.display    = 'block';
+            btn.textContent = 'Allow location access';
+            btn.disabled = false;
             updateButtonsUI();
         },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 10000 }
     );
 }
 
 function denyLocation() {
     permissionGranted = false;
     document.getElementById('permission-gate').style.display = 'none';
-    document.getElementById('denied-state').style.display = 'block';
+    document.getElementById('denied-state').style.display    = 'block';
     updateButtonsUI();
 }
 
 function retryPermission() {
-    document.getElementById('denied-state').style.display = 'none';
+    document.getElementById('denied-state').style.display    = 'none';
     document.getElementById('permission-gate').style.display = 'flex';
 }
 
-// init clock and permissions check
-function initClock() {
-    function tick() {
-        const d = new Date();
-        document.getElementById('clock').innerText = d.toLocaleTimeString('en-ZA', { hour12: false });
-        document.getElementById('date').innerText = d.toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    }
-    tick();
-    setInterval(tick, 1000);
-}
-
 function checkInitialPermissions() {
-    if ('geolocation' in navigator) {
-        navigator.permissions.query({ name: 'geolocation' }).then(permStatus => {
-            if (permStatus.state === 'granted') {
-                permissionGranted = true;
-                document.getElementById('permission-gate').style.display = 'none';
-                updateButtonsUI();
-            } else if (permStatus.state === 'prompt') {
-                document.getElementById('permission-gate').style.display = 'flex';
-            } else {
-                document.getElementById('permission-gate').style.display = 'none';
-                document.getElementById('denied-state').style.display = 'block';
-            }
-            permStatus.onchange = () => {
-                if (permStatus.state === 'granted') location.reload();
-            };
-        }).catch(() => {
-            document.getElementById('permission-gate').style.display = 'flex';
-        });
-    } else {
+    if (!('geolocation' in navigator)) {
         document.getElementById('permission-gate').style.display = 'flex';
+        return;
     }
+    navigator.permissions.query({ name: 'geolocation' }).then(perm => {
+        if (perm.state === 'granted') {
+            permissionGranted = true;
+            document.getElementById('permission-gate').style.display = 'none';
+            updateButtonsUI();
+        } else if (perm.state === 'denied') {
+            document.getElementById('permission-gate').style.display = 'none';
+            document.getElementById('denied-state').style.display    = 'block';
+        } else {
+            document.getElementById('permission-gate').style.display = 'flex';
+        }
+        perm.onchange = () => { if (perm.state === 'granted') location.reload(); };
+    }).catch(() => {
+        document.getElementById('permission-gate').style.display = 'flex';
+    });
 }
 
-// attach event listeners & UI
+// ── INIT ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
     initClock();
     renderScheduledDays();
     renderLog();
     updateStats();
     checkInitialPermissions();
+    fetchCurrentUser();
 
     document.getElementById('allow-location-btn').addEventListener('click', requestLocationPermission);
     document.getElementById('deny-location-btn').addEventListener('click', denyLocation);
     document.getElementById('retry-perm-btn').addEventListener('click', retryPermission);
     document.getElementById('signin-btn').addEventListener('click', doSignIn);
     document.getElementById('signout-btn').addEventListener('click', doSignOut);
+    document.getElementById('dismiss-late-banner').addEventListener('click', hideLateBanner);
 
-    setInterval(() => updateButtonsUI(), 1000);
+    setInterval(updateButtonsUI, 1000);
 });

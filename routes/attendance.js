@@ -33,7 +33,7 @@ router.get('/api/me', isAuthenticated, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT user_id, display_name, name, surname, email, role FROM users WHERE user_id = $1`,
-            [req.session.userId]
+            [req.session.user.id]
         );
         if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
         res.json(result.rows[0]);
@@ -46,7 +46,7 @@ router.get('/api/me', isAuthenticated, async (req, res) => {
 // ── GET /api/attendance/history ───────────────────────────────
 router.get('/api/attendance/history', isAuthenticated, async (req, res) => {
     try {
-        const learnerId = req.session.userId;
+        const learnerId = req.session.user.id;
         const result = await pool.query(
             `SELECT
                 ar.id,
@@ -72,12 +72,48 @@ router.get('/api/attendance/history', isAuthenticated, async (req, res) => {
     }
 });
 
+// ── GET /api/attendance/today-status ─────────────────────────
+// Returns whether the learner has signed in / out for today's session.
+// Used by the dashboard button to reflect current state.
+router.get('/api/attendance/today-status', isAuthenticated, async (req, res) => {
+    try {
+        const learnerId = req.session.user.id;
+        const today     = new Date().toISOString().slice(0, 10);
+
+        const result = await pool.query(
+            `SELECT ar.status, ar.check_in_time, ar.check_out_time
+             FROM attendance_records ar
+             JOIN attendance_sessions s ON s.id = ar.session_id
+             WHERE ar.learner_id = $1
+               AND s.session_date = $2
+             LIMIT 1`,
+            [learnerId, today]
+        );
+
+        if (!result.rows.length) {
+            return res.json({ signedIn: false, signedOut: false, status: null });
+        }
+
+        const row = result.rows[0];
+        res.json({
+            signedIn:  !!row.check_in_time,
+            signedOut: !!row.check_out_time,
+            status:    row.status,
+            checkIn:   row.check_in_time,
+            checkOut:  row.check_out_time
+        });
+    } catch (err) {
+        console.error('today-status error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // ── POST /api/attendance/signin ───────────────────────────────
 router.post('/api/attendance/signin', isAuthenticated, isRole('learner'), async (req, res) => {
     const client = await pool.connect();
     try {
         const { geo_latitude, geo_longitude, geo_verified, check_in_time, is_late } = req.body;
-        const learnerId = req.session.userId;
+        const learnerId = req.session.user.id;
 
         if (!geo_latitude || !geo_longitude) {
             return res.status(400).json({ success: false, message: 'Coordinates are required' });
@@ -148,7 +184,7 @@ router.post('/api/attendance/signout', isAuthenticated, isRole('learner'), async
     const client = await pool.connect();
     try {
         const { geo_latitude, geo_longitude, check_out_time } = req.body;
-        const learnerId = req.session.userId;
+        const learnerId = req.session.user.id;
 
         await client.query('BEGIN');
 

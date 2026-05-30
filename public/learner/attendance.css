@@ -53,9 +53,12 @@ main {
     margin: 2rem auto;
     padding: 0 1.5rem;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
 }
 
-/* ========== MODAL (PERMISSION GATE) ========== */
+/* ========== PERMISSION MODAL ========== */
 #permission-gate {
     display: none;
     position: fixed;
@@ -82,15 +85,8 @@ main {
 }
 
 @keyframes fadeSlideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .perm-icon {
@@ -128,7 +124,10 @@ main {
     text-align: left;
     margin: 1rem 0;
     color: #1e293b;
+    line-height: 1.7;
 }
+
+.perm-note em { color: #b45309; font-style: normal; font-weight: 500; }
 
 .perm-actions {
     display: flex;
@@ -137,7 +136,7 @@ main {
     margin-top: 0.5rem;
 }
 
-/* denied state */
+/* ========== DENIED STATE ========== */
 #denied-state {
     display: none;
     background: #fff5f5;
@@ -145,7 +144,6 @@ main {
     border-radius: 24px;
     padding: 2rem;
     text-align: center;
-    margin-bottom: 1.8rem;
 }
 
 .denied-title {
@@ -166,16 +164,79 @@ main {
     padding: 1rem;
     font-size: 0.85rem;
     text-align: left;
-    margin: 1rem 0;
+    margin: 1rem auto;
     border: 1px solid #fee2e2;
+    max-width: 320px;
+    line-height: 1.9;
 }
 
-/* ========== GRID UTILITY & STATS ========== */
+/* ========== LATE ALERT BANNER ========== */
+#late-alert-banner {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-left: 4px solid #f59e0b;
+    border-radius: 16px;
+    padding: 0.85rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.88rem;
+    color: #78350f;
+    animation: slideDown 0.25s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.late-icon { font-size: 1.2rem; flex-shrink: 0; }
+
+.dismiss-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #92400e;
+    cursor: pointer;
+    font-size: 1rem;
+    opacity: 0.6;
+    padding: 0.2rem 0.4rem;
+    border-radius: 6px;
+    line-height: 1;
+    transition: 0.15s;
+}
+.dismiss-btn:hover { opacity: 1; background: #fef3c7; }
+
+/* ========== CLOCK ========== */
+#datetime {
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+
+#clock {
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-family: monospace;
+    letter-spacing: 2px;
+    background: white;
+    display: inline-block;
+    padding: 0.2rem 1.2rem;
+    border-radius: 60px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    color: #0f172a;
+}
+
+#date {
+    font-size: 0.85rem;
+    color: #475569;
+    margin-top: 6px;
+}
+
+/* ========== STATS GRID ========== */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 1rem;
-    margin-bottom: 1.5rem;
 }
 
 .stat-card {
@@ -185,31 +246,22 @@ main {
     text-align: center;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
     border: 1px solid #e2e8f0;
-    transition: 0.1s ease;
+    transition: box-shadow 0.15s;
 }
+.stat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 
 .stat-val {
     font-size: 2.6rem;
     font-weight: 800;
     line-height: 1;
     margin-bottom: 0.25rem;
+    font-family: monospace;
 }
 
-.stat-present {
-    color: #0f7b4c;
-}
-
-.stat-absent {
-    color: #b91c1c;
-}
-
-.stat-late {
-    color: #c2410c;
-}
-
-.stat-neutral {
-    color: #2563eb;
-}
+.stat-present { color: #0f7b4c; }
+.stat-absent  { color: #b91c1c; }
+.stat-late    { color: #c2410c; }
+.stat-neutral { color: #2563eb; }
 
 .stat-label {
     font-size: 0.8rem;
@@ -219,17 +271,17 @@ main {
     color: #475569;
 }
 
-/* schedule notice */
+/* ========== SCHEDULE NOTICE ========== */
 .schedule-notice {
     background: white;
     border-radius: 20px;
     padding: 1rem 1.25rem;
-    margin-bottom: 1.5rem;
     border: 1px solid #e2e8f0;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 0.8rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
 .sched-text {
@@ -239,12 +291,7 @@ main {
     background: #f1f5f9;
     padding: 0.2rem 0.8rem;
     border-radius: 30px;
-}
-
-.sched-days {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+    white-space: nowrap;
 }
 
 .day-chip {
@@ -254,19 +301,18 @@ main {
     font-size: 0.8rem;
     font-weight: 500;
     color: #1e3a8a;
+    display: inline-block;
 }
-
 .day-chip.off {
     background: #f1f5f9;
     color: #64748b;
 }
 
-/* time windows grid */
+/* ========== TIME WINDOWS ========== */
 .time-windows {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
-    margin-bottom: 1.5rem;
 }
 
 .time-window {
@@ -274,6 +320,8 @@ main {
     border: 1px solid #e2e8f0;
     border-radius: 20px;
     padding: 1rem 1.2rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: border-color 0.3s;
 }
 
 .tw-label {
@@ -289,16 +337,20 @@ main {
     font-weight: 700;
     margin: 0.3rem 0 0.1rem;
     color: #0f172a;
+    font-family: monospace;
 }
 
-.tw-deadline {
-    font-size: 0.75rem;
-    color: #475569;
-}
+.tw-deadline { font-size: 0.75rem; color: #475569; }
+.tw-note     { font-size: 0.75rem; color: #475569; margin-top: 0.1rem; }
+.cutoff      { color: #c2410c; font-weight: 600; }
 
-.cutoff {
+.badge-late-inline {
+    background: #ffedd5;
     color: #c2410c;
-    font-weight: 600;
+    padding: 0.1rem 0.45rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
 }
 
 .tw-recorded {
@@ -309,14 +361,14 @@ main {
     padding: 4px 8px;
     border-radius: 12px;
     color: #15803d;
+    line-height: 1.5;
 }
 
-/* buttons */
+/* ========== ACTION BUTTONS ========== */
 .action-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
-    margin-bottom: 2rem;
 }
 
 .btn {
@@ -329,6 +381,10 @@ main {
     transition: 0.15s;
     background: #f1f5f9;
     color: #1e293b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
 }
 
 .btn-accent {
@@ -336,15 +392,19 @@ main {
     color: white;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
-
-.btn-accent:hover {
+.btn-accent:hover:not(:disabled) {
     background: #0a2f23;
     transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 59, 44, 0.25);
 }
 
 .btn-ghost {
     background: #eef2ff;
     border: 1px solid #cbd5e1;
+}
+.btn-ghost:hover:not(:disabled) {
+    background: #e0e7ff;
+    transform: translateY(-1px);
 }
 
 .btn-danger {
@@ -352,25 +412,30 @@ main {
     color: #b91c1c;
     border: 1px solid #fecaca;
 }
+.btn-danger:hover:not(:disabled) {
+    background: #fecaca;
+}
 
 .btn-large {
     padding: 0.9rem;
     font-size: 1rem;
+    width: 100%;
 }
 
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    transform: none;
+    transform: none !important;
+    pointer-events: none;
 }
 
-/* log table */
+/* ========== LOG TABLE ========== */
 .log-section {
     background: white;
     border-radius: 24px;
     border: 1px solid #e2e8f0;
-    overflow-x: auto;
-    margin-top: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
 .log-header {
@@ -384,6 +449,7 @@ main {
 .log-title {
     font-weight: 700;
     font-size: 1rem;
+    color: #0f172a;
 }
 
 .view-only-tag {
@@ -392,7 +458,12 @@ main {
     padding: 0.2rem 0.7rem;
     border-radius: 30px;
     color: #475569;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
 }
+
+.table-wrap { overflow-x: auto; }
 
 .log-table {
     width: 100%;
@@ -407,35 +478,25 @@ main {
     color: #334155;
     font-weight: 600;
     border-bottom: 1px solid #e9edf2;
+    white-space: nowrap;
 }
 
 .log-table td {
     padding: 0.8rem 1rem;
     border-bottom: 1px solid #f0f2f5;
     vertical-align: middle;
+    color: #1e293b;
 }
 
-.status-badge {
-    display: inline-block;
-    padding: 0.2rem 0.7rem;
-    border-radius: 30px;
-    font-size: 0.7rem;
-    font-weight: 600;
-}
+.log-table tr:last-child td { border-bottom: none; }
+.log-table tr.unscheduled-row td { opacity: 0.6; background: #fefce8; }
+.log-table tr:hover td { background: #f8fafc; }
 
-.badge-present {
-    background: #e0f2e9;
-    color: #0f7b4c;
-}
-
-.badge-late {
-    background: #ffedd5;
-    color: #b45309;
-}
-
-.badge-absent {
-    background: #fee2e2;
-    color: #b91c1c;
+.log-empty {
+    text-align: center;
+    padding: 2.5rem;
+    color: #94a3b8;
+    font-size: 0.85rem;
 }
 
 .loc-chip {
@@ -444,51 +505,26 @@ main {
     background: #f1f5f9;
     padding: 0.15rem 0.4rem;
     border-radius: 8px;
-}
-
-.unscheduled-row td {
-    opacity: 0.7;
-    background: #fefce8;
-}
-
-/* simple responsive */
-@media (max-width: 640px) {
-    main {
-        padding: 0 1rem;
-    }
-
-    .time-windows {
-        grid-template-columns: 1fr;
-    }
-
-    .action-row {
-        grid-template-columns: 1fr;
-    }
-
-    .stats-grid {
-        gap: 0.75rem;
-    }
-}
-
-#datetime {
-    text-align: center;
-    margin-bottom: 1.5rem;
-}
-
-#clock {
-    font-size: 2.5rem;
-    font-weight: 700;
-    font-family: monospace;
-    letter-spacing: 2px;
-    background: white;
-    display: inline-block;
-    padding: 0.2rem 1.2rem;
-    border-radius: 60px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-}
-
-#date {
-    font-size: 0.85rem;
     color: #475569;
-    margin-top: 6px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.7rem;
+    border-radius: 30px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.badge-present { background: #e0f2e9; color: #0f7b4c; }
+.badge-late    { background: #ffedd5; color: #b45309; }
+.badge-absent  { background: #fee2e2; color: #b91c1c; }
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 640px) {
+    main { padding: 0 1rem; margin: 1rem auto; }
+    .time-windows  { grid-template-columns: 1fr; }
+    .action-row    { grid-template-columns: 1fr; }
+    .stats-grid    { gap: 0.75rem; }
+    #clock         { font-size: 1.8rem; }
 }

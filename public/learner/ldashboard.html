@@ -12,7 +12,7 @@
   <span class="logo">Nkanyezi Academy <small>Learner Portal</small></span>
   <button class="hbtn">Help</button>
   <button class="hbtn" onclick="handleLogout()">Logout</button>
-  <div class="av">TN</div>
+  <div class="av" id="header-initials">--</div>
 </header>
 
 <div class="layout">
@@ -25,7 +25,7 @@
     <div class="sitem" onclick="setActive(this)">Materials</div>
     <div class="sitem" onclick="setActive(this)">Assessments</div>
     <div class="slabel">My record</div>
-    <div class="sitem" onclick="setActive(this)">Attendance</div>
+    <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
     <div class="sitem" onclick="setActive(this)">PoE portfolio</div>
     <div class="sitem" onclick="setActive(this)">Results</div>
     <div class="slabel">Support</div>
@@ -38,15 +38,15 @@
 
     <!-- Welcome bar -->
     <div class="welcome-bar">
-      <div class="welcome-av">TN</div>
+      <div class="welcome-av" id="welcome-av-initials"></div>
       <div>
-        <div class="welcome-name">Welcome back, Thabo</div>
-        <div class="welcome-sub">IT Support — NQF 4 &nbsp;·&nbsp; MICT SETA &nbsp;·&nbsp; Mentor: S. Botha</div>
+        <div class="welcome-name" id="welcome-name">Loading…</div>
+        <div class="welcome-sub" id="welcome-sub">&nbsp;·&nbsp; MICT SETA &nbsp;·&nbsp;</div>
       </div>
-      <button class="attend-btn" onclick="openModal()">
-        <div class="attend-dot"></div>
-        Capture attendance
-      </button>
+      <a class="attend-btn" href="/learner/attendance.html" id="attend-btn">
+        <div class="attend-dot" id="attend-dot"></div>
+        <span id="attend-btn-label">Capture attendance</span>
+      </a>
     </div>
 
     <!-- Stat cards -->
@@ -58,15 +58,14 @@
       </div>
       <div class="sc">
         <div class="sc-label">Attendance rate</div>
-        <div class="sc-val">91%</div>
-        <div class="sc-sub c-green">Above minimum</div>
+        <div class="sc-val" id="dash-attend-rate">—</div>
+        <div class="sc-sub c-green" id="dash-attend-sub">Loading…</div>
       </div>
       <div class="sc">
         <div class="sc-label">Units complete</div>
         <div class="sc-val">3 / 4</div>
         <div class="sc-sub" style="color:var(--text-secondary)">1 remaining</div>
       </div>
-      
     </div>
 
     <!-- Two-column layout -->
@@ -192,11 +191,11 @@
       <!-- RIGHT COLUMN -->
       <div>
 
-        <!-- Attendance calendar -->
+        <!-- Attendance summary panel -->
         <div class="panel">
           <div class="ph">
             <span class="pt">Attendance log</span>
-            <span class="ps">April 2025</span>
+            <span class="ps" id="cal-month">April 2025</span>
           </div>
           <div style="padding:14px 18px">
             <div class="cal-grid" style="margin-bottom:6px">
@@ -214,6 +213,9 @@
             <span><span class="leg-dot" style="background:#1d9e75"></span>Present</span>
             <span><span class="leg-dot" style="background:#e24b4a"></span>Absent</span>
             <span><span class="leg-dot" style="background:var(--bg-secondary)"></span>N/A</span>
+          </div>
+          <div style="padding:0 18px 14px;text-align:right">
+            <a href="/learner/attendance.html" class="view-attend-link">View full attendance →</a>
           </div>
         </div>
 
@@ -282,58 +284,6 @@
 
 <footer>Nkanyezi Learnership Management System &copy; 2025</footer>
 
-<!-- ═══════════ ATTENDANCE MODAL ═══════════ -->
-<div class="modal-overlay" id="modal-overlay">
-  <div class="modal">
-    <div class="modal-header">
-      <span class="modal-title">Capture attendance</span>
-      <button class="modal-close" onclick="closeModal()" aria-label="Close">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
-        Record your attendance for today's training session.
-      </p>
-
-      <div class="form-group">
-        <label class="form-label">Date</label>
-        <input type="date" id="attend-date">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Session</label>
-        <select id="attend-session">
-          <option>Morning (08:00 – 12:00)</option>
-          <option>Afternoon (13:00 – 17:00)</option>
-          <option>Full day (08:00 – 17:00)</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Status</label>
-        <select id="attend-status">
-          <option value="present">Present</option>
-          <option value="late">Late arrival</option>
-          <option value="absent">Absent — with reason</option>
-        </select>
-      </div>
-
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">Notes (optional)</label>
-        <textarea id="attend-notes" placeholder="e.g. reason for absence or late arrival…"></textarea>
-      </div>
-
-      <div class="confirm-msg" id="confirm-msg">
-        &#10003;&nbsp; Attendance captured successfully. Thank you!
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
-      <button class="mbtn mbtn-confirm" onclick="submitAttendance()">Submit attendance</button>
-    </div>
-  </div>
-</div>
-
-</body>
 <script src="ldashboard.js"></script>
-
+</body>
 </html>

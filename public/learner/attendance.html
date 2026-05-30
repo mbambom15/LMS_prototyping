@@ -1,35 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Nkanyezi Geo Attendance Tracker</title>
     <link rel="stylesheet" href="attendance.css">
 </head>
-
 <body>
+
     <header>
         <nav id="nav-header">
             <ul>
                 <li>Nkanyezi Geolocation Attendance Tracker</li>
-                <li>{User.logged In}</li>
+                <li id="user-display-name">Loading…</li>
             </ul>
         </nav>
     </header>
 
     <main>
+
         <!-- PERMISSION MODAL (popup) -->
         <div id="permission-gate">
             <section class="perm-card">
-                <div class="perm-icon" aria-hidden="true">📍</div>
+                <div class="perm-icon" aria-hidden="true">⌖</div>
                 <h1 class="perm-title">Location permission required</h1>
                 <p class="perm-desc">
                     Nkanyezi LMS requires GPS to verify onsite attendance. Your location is only recorded at sign-in and sign-out.
                 </p>
                 <aside class="perm-note">
-                    Onsite window: <strong>07:00 – 09:00</strong> sign-in<br>
-                    Sign-out deadline: <strong>15:00</strong>
+                    <strong>Sign-in window:</strong> 07:00 – 09:00<br>
+                    <strong>Sign-out window:</strong> 14:30 – 15:00<br>
+                    <em>Arriving after 07:30 is recorded as late — you can still sign in.</em>
                 </aside>
                 <div class="perm-actions">
                     <button class="btn btn-accent" id="allow-location-btn">Allow location access</button>
@@ -46,12 +47,19 @@
             </p>
             <div class="denied-steps">
                 <strong>To enable tracking, grant browser permission:</strong><br>
-                1. Click the 🔒 lock icon in address bar<br>
+                1. Click the lock icon in address bar<br>
                 2. Set <em>Location</em> to <strong>Allow</strong><br>
                 3. Reload this page
             </div>
             <button class="btn btn-ghost" id="retry-perm-btn">↺ Try again</button>
         </section>
+
+        <!-- LATE ALERT BANNER -->
+        <div id="late-alert-banner" style="display:none">
+            <span class="late-icon">⌛</span>
+            <span id="late-alert-msg">You are signing in late. Your attendance will be marked as <strong>Late</strong>.</span>
+            <button class="dismiss-btn" id="dismiss-late-banner">✕</button>
+        </div>
 
         <!-- realtime clock -->
         <div id="datetime">
@@ -62,15 +70,15 @@
         <!-- stats grid -->
         <div class="stats-grid">
             <article class="stat-card">
-                <div class="stat-val stat-present" id="stat-present"></div>
+                <div class="stat-val stat-present" id="stat-present">0</div>
                 <div class="stat-label">Days present</div>
             </article>
             <article class="stat-card">
-                <div class="stat-val stat-absent" id="stat-absent"></div>
+                <div class="stat-val stat-absent" id="stat-absent">0</div>
                 <div class="stat-label">Days absent</div>
             </article>
             <article class="stat-card">
-                <div class="stat-val stat-late" id="stat-late"></div>
+                <div class="stat-val stat-late" id="stat-late">0</div>
                 <div class="stat-label">Days late</div>
             </article>
             <article class="stat-card">
@@ -79,9 +87,9 @@
             </article>
         </div>
 
-        <!-- scheduled days (tue + thu) -->
+        <!-- scheduled days -->
         <div class="schedule-notice">
-            <div class="sched-text">📅 Your scheduled days</div>
+            <div class="sched-text">Your scheduled days</div>
             <div id="sched-days-display"></div>
         </div>
 
@@ -90,7 +98,7 @@
             <article class="time-window" id="tw-signin">
                 <h3 class="tw-label">Sign-in window</h3>
                 <div class="tw-time">07:00 – 09:00</div>
-                <div class="tw-deadline">Deadline: <span class="cutoff">09:00</span></div>
+                <div class="tw-note">After 07:30 = <span class="badge-late-inline">Late</span></div>
                 <div class="tw-recorded" id="signin-recorded" style="display:none"></div>
             </article>
             <article class="time-window" id="tw-signout">
@@ -110,25 +118,32 @@
         <!-- attendance log -->
         <section class="log-section">
             <div class="log-header">
-                <h2 class="log-title">📋 Attendance history</h2>
+                <h2 class="log-title">Attendance history</h2>
                 <div class="view-only-tag">View only</div>
             </div>
-            <table class="log-table">
-                <thead>
-                    <tr>
-                        <th>Date</th><th>Session</th><th>Sign-in</th><th>Sign-out</th><th>Location</th><th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="log-tbody"></tbody>
-            </table>
+            <div class="table-wrap">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Session</th>
+                            <th>Sign-in</th>
+                            <th>Sign-out</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-tbody"></tbody>
+                </table>
+            </div>
         </section>
+
     </main>
 
     <footer>
         Attendance tracker 2026 · HospiTrack Information Systems ©
     </footer>
-        
-</body>
-<script src="attendance.js"></script>
 
+    <script src="attendance.js"></script>
+</body>
 </html>

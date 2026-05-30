@@ -8,12 +8,12 @@ function isAuthenticated(req, res, next){
 
 /*Check the corred=ct role */
 function isRole(role) {
-    return(req, res, next) => {
-
-        if(req.session.user && req.session.user.role === role){
+    return (req, res, next) => {
+        if (req.session.user &&
+            req.session.user.role.toLowerCase() === role.toLowerCase()) {
             return next();
         }
-        res.status(403).send('Access denied. You are not allowed here');
+        res.status(403).send('Access denied');
     };
 }
 module.exports = { isAuthenticated, isRole};

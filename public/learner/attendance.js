@@ -244,7 +244,7 @@ function doSignIn() {
 
 async function postSignIn(coords, timestamp, geoVerified, isLate) {
     try {
-        await fetch('/api/attendance/signin', {
+        const res = await fetch('/api/attendance/signin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -256,8 +256,16 @@ async function postSignIn(coords, timestamp, geoVerified, isLate) {
                 session_name:  CONFIG.sessionName
             })
         });
+        if (!res.ok) {
+            const msg = await res.text();
+            throw new Error(`Sign‑in failed (${res.status}): ${msg}`);
+        }
     } catch (e) {
-        console.warn('Sign-in API call failed (offline?)', e);
+        console.error(e);
+        //revert UI changes and show an alert
+        signedIn = false;
+        document.getElementById('signin-btn').disabled = false;
+        alert('Attendance sign‑in failed. Please try again. ' + e.message);
     }
 }
 
@@ -311,7 +319,7 @@ function doSignOut() {
 
 async function postSignOut(coords, timestamp) {
     try {
-        await fetch('/api/attendance/signout', {
+        const res = await fetch('/api/attendance/signout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -321,8 +329,16 @@ async function postSignOut(coords, timestamp) {
                 session_name:   CONFIG.sessionName
             })
         });
+        if (!res.ok) {
+            const msg = await res.text();
+            throw new Error(`Sign‑in failed (${res.status}): ${msg}`);
+        }
     } catch (e) {
-        console.warn('Sign-out API call failed (offline?)', e);
+       console.error(e);
+        // 👇 revert UI changes and show an alert
+        signedIn = false;
+        document.getElementById('signin-btn').disabled = false;
+        alert('Attendance sign‑in failed. Please try again. ' + e.message);
     }
 }
 

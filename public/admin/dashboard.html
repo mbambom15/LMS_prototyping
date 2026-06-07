@@ -22,8 +22,14 @@
             font-family: inherit;
             transition: background 0.15s;
         }
-        #pw-gen-btn:hover { background: #cfe3f5; }
-        #pw-gen-btn svg { flex-shrink: 0; }
+
+        #pw-gen-btn:hover {
+            background: #cfe3f5;
+        }
+
+        #pw-gen-btn svg {
+            flex-shrink: 0;
+        }
 
         /* Inline hint below the password field */
         .pw-hint {
@@ -35,8 +41,14 @@
             align-items: center;
             gap: 4px;
         }
-        .pw-hint:hover { text-decoration: underline; }
-        #add-user.visible .pw-hint { display: flex; }
+
+        .pw-hint:hover {
+            text-decoration: underline;
+        }
+
+        #add-user.visible .pw-hint {
+            display: flex;
+        }
     </style>
 </head>
 
@@ -49,8 +61,8 @@
         <button id="pw-gen-btn" onclick="openPasswordGenerator()" title="Open password generator in new tab">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
                 stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
             Generate password
         </button>
@@ -140,8 +152,7 @@
                     <div class="action-bar">
                         <button class="btn btn-blue" onclick="toggleArea('add-user')">+ Add new user</button>
                         <button class="btn" onclick="toggleArea('all-users')">View all users</button>
-                        <button class="btn" onclick="toggleArea('modify-user')">Modify user</button>
-                        <button class="btn btn-red" onclick="toggleArea('remove-user')">Remove user</button>
+                        
                     </div>
 
                     <div id="add-user" class="content-area">
@@ -162,10 +173,11 @@
                                         placeholder="Min 8 characters">
                                     <!-- Inline hint linking to the generator -->
                                     <span class="pw-hint" onclick="openPasswordGenerator()">
-                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                         </svg>
                                         Generate a strong password
                                     </span>
@@ -220,7 +232,7 @@
                     </div>
 
                     <div class="content-area" id="all-users">
-                        <table class="table">
+                        <table class="table" id="users-table">
                             <thead>
                                 <tr>
                                     <th>Name</th>
@@ -228,15 +240,16 @@
                                     <th>Role</th>
                                     <th>Qualification</th>
                                     <th>Status</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
+                                <!-- Populated by refreshUserTable() in dashboard.js -->
                                 <tr>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td><span class="badge badge-active"></span></td>
+                                    <td colspan="6"
+                                        style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px">
+                                        Click "View all users" to load.
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -268,7 +281,7 @@
                     <div class="content-area" id="remove-user">
                         <div class="form-group"><label class="form-label">Select user to remove</label>
                             <select>
-                                
+
                             </select>
                         </div>
                         <p style="font-size:12px;color:var(--text-secondary);margin:8px 0 12px">This action is
@@ -328,33 +341,45 @@
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>Title</th><th>NQF</th><th>SETA</th>
-                                    <th>Duration</th><th>Enrolled</th><th>Status</th>
+                                    <th>Title</th>
+                                    <th>NQF</th>
+                                    <th>SETA</th>
+                                    <th>Duration</th>
+                                    <th>Enrolled</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
                                     <td>IT Support</td>
                                     <td><span class="badge badge-nqf4">NQF 4</span></td>
-                                    <td>MICT SETA</td><td>12 months</td><td>9</td>
+                                    <td>MICT SETA</td>
+                                    <td>12 months</td>
+                                    <td>9</td>
                                     <td><span class="badge badge-active">Active</span></td>
                                 </tr>
                                 <tr>
                                     <td>Business Administration</td>
                                     <td><span class="badge badge-nqf3">NQF 3</span></td>
-                                    <td>SERVICES SETA</td><td>12 months</td><td>6</td>
+                                    <td>SERVICES SETA</td>
+                                    <td>12 months</td>
+                                    <td>6</td>
                                     <td><span class="badge badge-active">Active</span></td>
                                 </tr>
                                 <tr>
                                     <td>Finance &amp; Accounting</td>
                                     <td><span class="badge badge-nqf4">NQF 4</span></td>
-                                    <td>FASSET</td><td>18 months</td><td>3</td>
+                                    <td>FASSET</td>
+                                    <td>18 months</td>
+                                    <td>3</td>
                                     <td><span class="badge badge-active">Active</span></td>
                                 </tr>
                                 <tr>
                                     <td>Electrical Engineering</td>
                                     <td><span class="badge badge-nqf3">NQF 3</span></td>
-                                    <td>MERSETA</td><td>24 months</td><td>0</td>
+                                    <td>MERSETA</td>
+                                    <td>24 months</td>
+                                    <td>0</td>
                                     <td><span class="badge badge-inactive">Draft</span></td>
                                 </tr>
                             </tbody>
@@ -515,15 +540,18 @@
                                 </div>
                                 <div class="unit-row">
                                     <div class="unit-num">2</div><span>Core concepts</span>
-                                    <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary)">0 files</span>
+                                    <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary)">0
+                                        files</span>
                                 </div>
                                 <div class="unit-row">
                                     <div class="unit-num">3</div><span>Practical application</span>
-                                    <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary)">0 files</span>
+                                    <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary)">0
+                                        files</span>
                                 </div>
                                 <div class="unit-row">
                                     <div class="unit-num">4</div><span>Assessment preparation</span>
-                                    <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary)">0 files</span>
+                                    <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary)">0
+                                        files</span>
                                 </div>
                             </div>
                         </div>

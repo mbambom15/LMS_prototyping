@@ -289,3 +289,60 @@
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
       .form-row { grid-template-columns: 1fr; }
     }
+/* ── Extra-small action buttons inside the table ── */
+.btn-xs {
+    padding: 4px 10px;
+    font-size: 11px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    font-weight: 500;
+    margin-right: 4px;
+    transition: opacity 0.15s;
+}
+.btn-xs:hover    { opacity: 0.82; }
+.btn-xs:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-xs.btn-blue  { background: #185fa5; color: #fff; }
+.btn-xs.btn-red   { background: #e24b4a; color: #fff; }
+.btn-xs.btn-green { background: #1d9e75; color: #fff; }
+.btn-xs           { background: #f1efe8; color: var(--text-primary); border: 0.5px solid var(--border); }
+ 
+/* ── Role badge (neutral) ── */
+.badge-role {
+    background: #eef1f7;
+    color: #3a4a6b;
+    border: 0.5px solid #c8d2e8;
+    text-transform: capitalize;
+}
+ 
+/* ── Status badges (add suspended / completed if not already present) ── */
+.badge-suspended { background: #fef3cd; color: #8a5c00; border: 0.5px solid #f5d97a; }
+.badge-completed { background: #e6f7f1; color: #13694a; border: 0.5px solid #9edec5; }
+ 
+/* ── Inline feedback messages ── */
+.success-message {
+    background: #e6f7f1;
+    color: #13694a;
+    border: 0.5px solid #9edec5;
+    border-radius: 6px;
+    padding: 8px 12px;
+}
+.error-message {
+    background: #fcebeb;
+    color: #a32d2d;
+    border: 0.5px solid #e8a8a8;
+    border-radius: 6px;
+    padding: 8px 12px;
+}
+ 
+/* ── Inline select inside table row ── */
+#users-table select {
+    font-size: 12px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+}

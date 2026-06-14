@@ -1,126 +1,230 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deal — Nkanyezi Academy</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="deal-detail.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deal — Nkanyezi Academy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="deal-detail.css">
 </head>
+
 <body>
 
-<!-- ── Top navigation bar ── -->
-<nav class="topbar">
-  <div class="breadcrumb">
-    <a href="/admin">Admin</a>
-    <span class="breadcrumb-sep">›</span>
-    <a href="/admin" onclick="history.back(); return false;">Deal management</a>
-    <span class="breadcrumb-sep">›</span>
-    <span class="breadcrumb-current" id="bc-deal-name">Loading…</span>
-  </div>
-  <div class="topbar-actions">
-    <a class="btn-outline" href="/admin" onclick="history.back(); return false;">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      Back
-    </a>
-    <button class="btn-solid" onclick="openLinkLearnersForDeal()">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-      Link learner
-    </button>
-  </div>
-</nav>
+    <!-- ── Top navigation bar ── -->
+    <nav class="topbar">
+        <div class="breadcrumb">
+            <a href="/admin">Admin</a>
+            <span class="breadcrumb-sep">›</span>
+            <a href="dashboard.html" onclick="history.back(); return false;">Deal management</a>
+            <span class="breadcrumb-sep">›</span>
+            <span class="breadcrumb-current" id="bc-deal-name">Loading…</span>
+        </div>
+        <div class="topbar-actions">
+            <a class="btn-outline" href="/admin" onclick="history.back(); return false;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                Back
+            </a>
+            <button class="btn-solid" onclick="openLinkLearnersForDeal()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <line x1="19" y1="8" x2="19" y2="14" />
+                    <line x1="22" y1="11" x2="16" y2="11" />
+                </svg>
+                Link learner
+            </button>
+        </div>
+    </nav>
 
-<!-- ── Page content ── -->
-<div class="page-wrap">
+    <!-- ── Page content ── -->
+    <div class="page-wrap">
 
-  <!-- Deal header -->
-  <div class="deal-header" id="deal-header">
-    <div class="deal-eyebrow" id="deal-eyebrow">Deal #—</div>
-    <div class="deal-title" id="deal-title">Loading deal…</div>
-    <div class="deal-meta-row" id="deal-meta-row">
-      <span style="color:var(--text-3);font-size:12px">Fetching information…</span>
-    </div>
-  </div>
+        <!-- Deal header -->
+        <div class="deal-header" id="deal-header">
+            <div class="deal-eyebrow" id="deal-eyebrow">Deal #—</div>
+            <div class="deal-title" id="deal-title">Loading deal…</div>
+            <div class="deal-meta-row" id="deal-meta-row">
+                <span style="color:var(--text-3);font-size:12px">Fetching information…</span>
+            </div>
+        </div>
 
-  <!-- Stats strip -->
-  <div class="stats-strip" id="stats-strip">
-    <div class="stat-cell">
-      <div class="stat-label">Linked learners</div>
-      <div class="stat-val" id="stat-linked">—</div>
-      <div class="stat-sub" id="stat-expected">of — expected</div>
-    </div>
-    <div class="stat-cell">
-      <div class="stat-label">Avg. progress</div>
-      <div class="stat-val" id="stat-avg-prog">—</div>
-      <div class="stat-sub">across all learners</div>
-    </div>
-    <div class="stat-cell">
-      <div class="stat-label">Active learners</div>
-      <div class="stat-val" id="stat-active">—</div>
-      <div class="stat-sub">currently enrolled</div>
-    </div>
-    <div class="stat-cell">
-      <div class="stat-label">At-risk learners</div>
-      <div class="stat-val" id="stat-risk" style="color:var(--red)">—</div>
-      <div class="stat-sub">flagged for review</div>
-    </div>
-  </div>
+        <!-- Stats strip -->
+        <div class="stats-strip" id="stats-strip">
+            <div class="stat-cell">
+                <div class="stat-label">Linked learners</div>
+                <div class="stat-val" id="stat-linked">—</div>
+                <div class="stat-sub" id="stat-expected">of — expected</div>
+            </div>
+            <div class="stat-cell">
+                <div class="stat-label">Avg. progress</div>
+                <div class="stat-val" id="stat-avg-prog">—</div>
+                <div class="stat-sub">across all learners</div>
+            </div>
+            <div class="stat-cell">
+                <div class="stat-label">Active learners</div>
+                <div class="stat-val" id="stat-active">—</div>
+                <div class="stat-sub">currently enrolled</div>
+            </div>
+            <div class="stat-cell">
+                <div class="stat-label">At-risk learners</div>
+                <div class="stat-val" id="stat-risk" style="color:var(--red)">—</div>
+                <div class="stat-sub">flagged for review</div>
+            </div>
+        </div>
 
-  <!-- Learner list -->
-  <div class="section-head">
-    <span class="section-title">Learners</span>
-    <span class="section-count" id="learner-count">0 learners</span>
-  </div>
+        <!-- Learner list -->
+        <div class="section-head">
+            <span class="section-title">Learners</span>
+            <span class="section-count" id="learner-count">0 learners</span>
+        </div>
 
-  <!-- Filter bar -->
-  <div class="filter-bar">
-    <div class="filter-search-wrap">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input class="filter-search" id="learner-search" placeholder="Search learners…" oninput="filterLearners()" type="text">
-    </div>
-    <select class="filter-select" id="filter-status" onchange="filterLearners()">
-      <option value="">All statuses</option>
-      <option value="active">Active</option>
-      <option value="inactive">Inactive</option>
-      <option value="suspended">Suspended</option>
-      <option value="completed">Completed</option>
-    </select>
-    <select class="filter-select" id="filter-risk" onchange="filterLearners()">
-      <option value="">All risk levels</option>
-      <option value="high">High risk</option>
-      <option value="medium">Medium risk</option>
-      <option value="low">Low risk</option>
-    </select>
-  </div>
+        <!-- Filter bar -->
+        <div class="filter-bar">
+            <div class="filter-search-wrap">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input class="filter-search" id="learner-search" placeholder="Search learners…"
+                    oninput="filterLearners()" type="text">
+            </div>
+            <select class="filter-select" id="filter-status" onchange="filterLearners()">
+                <option value="">All statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="suspended">Suspended</option>
+                <option value="completed">Completed</option>
+            </select>
+            <select class="filter-select" id="filter-risk" onchange="filterLearners()">
+                <option value="">All risk levels</option>
+                <option value="high">High risk</option>
+                <option value="medium">Medium risk</option>
+                <option value="low">Low risk</option>
+            </select>
+        </div>
 
-  <div class="learner-table-wrap">
-    <table class="lt" id="learner-table">
-      <thead>
-        <tr>
-          <th style="min-width:180px">Learner</th>
-          <th style="min-width:130px">Progress</th>
-          <th>Status</th>
-          <th>Last login</th>
-          <th>Risk</th>
-          <th>Enrolment start</th>
-          <th style="min-width:220px">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="learner-tbody">
-        <!-- skeleton rows -->
-        <tr class="sk-row"><td><div class="sk-cell"><div class="shimmer sk-circle"></div><div style="flex:1"><div class="shimmer sk-line" style="width:70%;margin-bottom:5px"></div><div class="shimmer sk-line" style="width:50%;height:10px"></div></div></div></td><td><div class="shimmer sk-line" style="width:80px"></div></td><td><div class="shimmer sk-line" style="width:55px"></div></td><td><div class="shimmer sk-line" style="width:90px"></div></td><td><div class="shimmer sk-line" style="width:50px"></div></td><td><div class="shimmer sk-line" style="width:70px"></div></td><td><div class="shimmer sk-line" style="width:160px"></div></td></tr>
-        <tr class="sk-row"><td><div class="sk-cell"><div class="shimmer sk-circle"></div><div style="flex:1"><div class="shimmer sk-line" style="width:65%;margin-bottom:5px"></div><div class="shimmer sk-line" style="width:45%;height:10px"></div></div></div></td><td><div class="shimmer sk-line" style="width:80px"></div></td><td><div class="shimmer sk-line" style="width:55px"></div></td><td><div class="shimmer sk-line" style="width:90px"></div></td><td><div class="shimmer sk-line" style="width:50px"></div></td><td><div class="shimmer sk-line" style="width:70px"></div></td><td><div class="shimmer sk-line" style="width:160px"></div></td></tr>
-        <tr class="sk-row"><td><div class="sk-cell"><div class="shimmer sk-circle"></div><div style="flex:1"><div class="shimmer sk-line" style="width:75%;margin-bottom:5px"></div><div class="shimmer sk-line" style="width:55%;height:10px"></div></div></div></td><td><div class="shimmer sk-line" style="width:80px"></div></td><td><div class="shimmer sk-line" style="width:55px"></div></td><td><div class="shimmer sk-line" style="width:90px"></div></td><td><div class="shimmer sk-line" style="width:50px"></div></td><td><div class="shimmer sk-line" style="width:70px"></div></td><td><div class="shimmer sk-line" style="width:160px"></div></td></tr>
-      </tbody>
-    </table>
-  </div>
+        <div class="learner-table-wrap">
+            <table class="lt" id="learner-table">
+                <thead>
+                    <tr>
+                        <th style="min-width:180px">Learner</th>
+                        <th style="min-width:130px">Progress</th>
+                        <th>Status</th>
+                        <th>Last login</th>
+                        <th>Risk</th>
+                        <th>Enrolment start</th>
+                        <th style="min-width:480px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="learner-tbody">
+                    <!-- skeleton rows -->
+                    <tr class="sk-row">
+                        <td>
+                            <div class="sk-cell">
+                                <div class="shimmer sk-circle"></div>
+                                <div style="flex:1">
+                                    <div class="shimmer sk-line" style="width:70%;margin-bottom:5px"></div>
+                                    <div class="shimmer sk-line" style="width:50%;height:10px"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:80px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:55px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:90px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:50px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:70px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:160px"></div>
+                        </td>
+                    </tr>
+                    <tr class="sk-row">
+                        <td>
+                            <div class="sk-cell">
+                                <div class="shimmer sk-circle"></div>
+                                <div style="flex:1">
+                                    <div class="shimmer sk-line" style="width:65%;margin-bottom:5px"></div>
+                                    <div class="shimmer sk-line" style="width:45%;height:10px"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:80px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:55px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:90px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:50px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:70px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:160px"></div>
+                        </td>
+                    </tr>
+                    <tr class="sk-row">
+                        <td>
+                            <div class="sk-cell">
+                                <div class="shimmer sk-circle"></div>
+                                <div style="flex:1">
+                                    <div class="shimmer sk-line" style="width:75%;margin-bottom:5px"></div>
+                                    <div class="shimmer sk-line" style="width:55%;height:10px"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:80px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:55px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:90px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:50px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:70px"></div>
+                        </td>
+                        <td>
+                            <div class="shimmer sk-line" style="width:160px"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
-</div><!-- /page-wrap -->
+    </div><!-- /page-wrap -->
 
-<!-- Toast notification -->
-<div class="toast" id="toast"></div>
+    <!-- Toast notification -->
+    <div class="toast" id="toast"></div>
+
 </body>
+
 </html>
 <script src="deal-detail.js"></script>

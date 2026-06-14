@@ -192,7 +192,7 @@ function filterLearners() {
   if (!filtered.length) {
     tbody.innerHTML = `
       <tr><td colspan="7"><div class="empty-state">
-        <div class="empty-icon">🔍</div>
+        <div class="empty-icon"></div>
         <div class="empty-title">No matches</div>
         <div class="empty-sub">Try adjusting your search or filters.</div>
       </div></td></tr>`;

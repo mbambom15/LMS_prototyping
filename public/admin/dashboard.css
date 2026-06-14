@@ -346,3 +346,38 @@
     color: var(--text-primary);
     font-family: inherit;
 }
+/*qualifcation styling.*/
+.unit-edit-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.unit-edit-row:last-child {
+  border-bottom: none;
+}
+
+.unit-edit-num {
+  min-width: 28px;
+  height: 28px;
+  background: var(--bg-tertiary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.unit-edit-fields {
+  flex: 1;
+}
+
+.unit-edit-credits {
+  flex-shrink: 0;
+}

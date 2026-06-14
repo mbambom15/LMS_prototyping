@@ -9,32 +9,41 @@ function showSection(name, el) {
 /* ── CRUD toggle panels ── */
 function toggleArea(id) {
   const target = document.getElementById(id);
+  if (!target) return;
+
   const isOpen = target.classList.contains('visible');
+
+  // Close all content areas
   document.querySelectorAll('.content-area').forEach(el => el.classList.remove('visible'));
 
+  // Show/hide the password generator button
   const pwBtn = document.getElementById('pw-gen-btn');
   if (pwBtn) {
     pwBtn.style.display = (!isOpen && id === 'add-user') ? 'inline-flex' : 'none';
   }
 
+  // If the panel is being opened (not closed), load its data
   if (!isOpen) {
     target.classList.add('visible');
-    // Auto-load users table when "View all users" is opened
+
     if (id === 'all-users') refreshUserTable();
-    // Auto-load selects for modify/remove panels
     if (id === 'modify-user' || id === 'remove-user') populateUserSelects();
+
+    // Qualification‑related triggers (merged from the old second function)
+    if (id === 'all-qual') refreshQualTable();
+    if (id === 'remove-qual') populateRemoveSelect();
+    if (id === 'upload-material') onUploadQualChange();
   }
 }
 
-/* ── Open password generator in new tab ── */
+
 function openPasswordGenerator() {
   window.open('password_generator.html', '_blank', 'width=560,height=620,resizable=yes');
 }
 
-/* ── Logout placeholder ── */
 function handleLogout() {
   if (confirm('Are you sure you want to log out?')) {
-    alert('Logged out. Redirect to login page here.');
+    window.location.href = '/logout';
   }
 }
 
@@ -394,3 +403,442 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 });
+
+/* ══════════════════════════════════════════════════════════
+   qualifications.js
+   Handles all Qualification management:
+     - Create qualification + units
+     - View all qualifications (live table)
+     - Update qualification (fields + per-unit editing)
+     - Toggle active/draft status inline
+     - Remove qualification (with active-enrolment guard)
+     - Unit listing inside update panel
+══════════════════════════════════════════════════════════ */
+
+/* ── State ── */
+let allQuals = [];
+
+/* ════════════════════════════════════════════════════════
+   SECTION INIT — called when the qualifications section opens
+════════════════════════════════════════════════════════ */
+function initQualSection() {
+  populateQualSelects();
+}
+
+/* ════════════════════════════════════════════════════════
+   FETCH helpers
+════════════════════════════════════════════════════════ */
+async function fetchQuals() {
+  const res  = await fetch('/api/qualifications');
+  const data = await res.json();
+  if (!data.success) throw new Error(data.message);
+  allQuals = data.qualifications;
+  return allQuals;
+}
+
+/* ════════════════════════════════════════════════════════
+   CREATE QUALIFICATION
+   Handles #createQualForm submit
+════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  const createForm = document.getElementById('createQualForm');
+  if (createForm) {
+    createForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn  = createForm.querySelector('button[type="submit"]');
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      const payload = {
+        title:           document.getElementById('cq-title').value.trim(),
+        nqf_level:       document.getElementById('cq-nqf').value,
+        seta:            document.getElementById('cq-seta').value.trim(),
+        duration_months: document.getElementById('cq-duration').value,
+        description:     document.getElementById('cq-desc').value.trim(),
+        unit_count:      document.getElementById('cq-units').value,
+        total_credits:   document.getElementById('cq-credits').value,
+        is_active:       document.getElementById('cq-status').value === 'true',
+      };
+
+      try {
+        const res  = await fetch('/api/qualifications', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        showQualMsg('create', '✓ Qualification created successfully.', 'success');
+        createForm.reset();
+        populateQualSelects(); // refresh selects in other panels
+      } catch (err) {
+        showQualMsg('create', 'Error: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    });
+  }
+});
+
+/* ════════════════════════════════════════════════════════
+   VIEW ALL QUALIFICATIONS  — live table
+════════════════════════════════════════════════════════ */
+async function refreshQualTable() {
+  const tbody = document.querySelector('#all-qual table tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-secondary);font-size:13px">Loading…</td></tr>`;
+
+  try {
+    const quals = await fetchQuals();
+
+    if (!quals.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-secondary);font-size:13px">No qualifications yet. Create one above.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = quals.map(q => renderQualRow(q)).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--color-red);font-size:13px">Failed to load: ${err.message}</td></tr>`;
+  }
+}
+
+function renderQualRow(q) {
+  const statusBadge = q.is_active
+    ? `<span class="badge badge-active">Active</span>`
+    : `<span class="badge badge-inactive">Draft</span>`;
+
+  const nqfBadge = q.nqf_level?.replace('NQF', '').trim()
+    ? `<span class="badge badge-nqf${q.nqf_level.replace('NQF','').trim()}">${q.nqf_level}</span>`
+    : `<span class="badge">${q.nqf_level}</span>`;
+
+  return `
+    <tr data-qual-id="${q.id}">
+      <td>${escHtml(q.title)}</td>
+      <td>${nqfBadge}</td>
+      <td>${escHtml(q.seta)}</td>
+      <td>${q.duration_months} mo</td>
+      <td>${q.enrolled_count ?? 0}</td>
+      <td>${statusBadge}</td>
+      <td>
+        <button class="btn btn-xs btn-blue" onclick="openUpdatePanel('${q.id}')">Edit</button>
+        <button class="btn btn-xs" onclick="toggleQualStatus('${q.id}', ${!q.is_active})" title="${q.is_active ? 'Set to Draft' : 'Set to Active'}">
+          ${q.is_active ? 'Draft' : 'Activate'}
+        </button>
+        <button class="btn btn-xs btn-red" onclick="confirmRemoveQual('${q.id}', '${escHtml(q.title)}')">Remove</button>
+      </td>
+    </tr>`;
+}
+
+/* ════════════════════════════════════════════════════════
+   STATUS TOGGLE (inline from table)
+════════════════════════════════════════════════════════ */
+async function toggleQualStatus(qualId, newStatus) {
+  try {
+    const res  = await fetch(`/api/qualifications/${qualId}/status`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ is_active: newStatus }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    showQualTableMsg(data.message, 'success');
+    await refreshQualTable();
+  } catch (err) {
+    showQualTableMsg('Failed: ' + err.message, 'error');
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   UPDATE QUALIFICATION PANEL
+════════════════════════════════════════════════════════ */
+
+/** Load a qualification into the update form */
+async function openUpdatePanel(qualId) {
+  // Make sure the update panel is open
+  const panel = document.getElementById('update-qual');
+  if (!panel) return;
+  document.querySelectorAll('.content-area').forEach(el => el.classList.remove('visible'));
+  panel.classList.add('visible');
+
+  // Scroll to panel
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Show loading state
+  const inner = document.getElementById('update-qual-inner');
+  if (inner) inner.innerHTML = `<div style="padding:20px;color:var(--text-secondary);font-size:13px">Loading…</div>`;
+
+  try {
+    const res  = await fetch(`/api/qualifications/${qualId}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    renderUpdateForm(data.qualification, data.units);
+  } catch (err) {
+    if (inner) inner.innerHTML = `<div style="padding:20px;color:var(--color-red);font-size:13px">Failed to load: ${err.message}</div>`;
+  }
+}
+
+function renderUpdateForm(q, units) {
+  const inner = document.getElementById('update-qual-inner');
+  if (!inner) return;
+
+  const unitsHtml = (units || []).map(u => `
+    <div class="unit-edit-row" data-unit-id="${u.id}">
+      <div class="unit-edit-num">${u.unit_number}</div>
+      <div class="unit-edit-fields">
+        <input class="unit-title-input" type="text" value="${escHtml(u.title)}" placeholder="Unit title" style="font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);width:100%;margin-bottom:4px">
+        <textarea class="unit-desc-input" placeholder="Description / outcomes" rows="2" style="font-size:11px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);width:100%;resize:vertical">${escHtml(u.description || '')}</textarea>
+      </div>
+      <div class="unit-edit-credits">
+        <input class="unit-credits-input" type="number" value="${u.credits || ''}" placeholder="Credits" min="0" style="font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);width:70px">
+      </div>
+    </div>
+  `).join('');
+
+  inner.innerHTML = `
+    <input type="hidden" id="uq-id" value="${q.id}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Qualification title</label>
+        <input type="text" id="uq-title" value="${escHtml(q.title)}" placeholder="Title">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SETA</label>
+        <input type="text" id="uq-seta" value="${escHtml(q.seta)}" placeholder="e.g. MICT SETA">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Duration (months)</label>
+        <input type="number" id="uq-duration" value="${q.duration_months}" min="1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="uq-status">
+          <option value="true"  ${q.is_active ? 'selected' : ''}>Active</option>
+          <option value="false" ${!q.is_active ? 'selected' : ''}>Draft</option>
+        </select>
+      </div>
+    </div>
+
+    ${units?.length ? `
+      <div style="margin:16px 0 8px">
+        <div class="form-label" style="margin-bottom:8px">Units <span style="font-weight:400;color:var(--text-secondary)">(edit titles, descriptions &amp; credits)</span></div>
+        <div id="units-edit-list">${unitsHtml}</div>
+      </div>
+    ` : ''}
+
+    <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
+      <button class="btn btn-blue" onclick="saveQualUpdate()">Save changes</button>
+      <button class="btn" onclick="cancelUpdatePanel()">Cancel</button>
+    </div>
+    <div id="update-qual-msg" style="margin-top:10px;font-size:13px;display:none"></div>
+  `;
+}
+
+async function saveQualUpdate() {
+  const qualId = document.getElementById('uq-id')?.value;
+  if (!qualId) return;
+
+  const payload = {
+    title:           document.getElementById('uq-title')?.value.trim(),
+    seta:            document.getElementById('uq-seta')?.value.trim(),
+    duration_months: document.getElementById('uq-duration')?.value,
+    is_active:       document.getElementById('uq-status')?.value === 'true',
+    units: []
+  };
+
+  // Collect unit edits
+  document.querySelectorAll('#units-edit-list .unit-edit-row').forEach(row => {
+    payload.units.push({
+      id:          row.dataset.unitId,
+      title:       row.querySelector('.unit-title-input').value.trim(),
+      description: row.querySelector('.unit-desc-input').value.trim(),
+      credits:     parseInt(row.querySelector('.unit-credits-input').value, 10) || null,
+    });
+  });
+
+  try {
+    const res  = await fetch(`/api/qualifications/${qualId}`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    const msgEl = document.getElementById('update-qual-msg');
+    if (msgEl) {
+      msgEl.textContent   = '✓ Qualification updated successfully.';
+      msgEl.className     = 'success-message';
+      msgEl.style.display = 'block';
+      setTimeout(() => { msgEl.style.display = 'none'; }, 4000);
+    }
+    populateQualSelects(); // refresh dropdowns elsewhere
+  } catch (err) {
+    const msgEl = document.getElementById('update-qual-msg');
+    if (msgEl) {
+      msgEl.textContent   = 'Error: ' + err.message;
+      msgEl.className     = 'error-message';
+      msgEl.style.display = 'block';
+    }
+  }
+}
+
+function cancelUpdatePanel() {
+  const panel = document.getElementById('update-qual');
+  if (panel) panel.classList.remove('visible');
+  const inner = document.getElementById('update-qual-inner');
+  if (inner) inner.innerHTML = `<div style="padding:12px;color:var(--text-secondary);font-size:13px">Select a qualification from the table above to edit it.</div>`;
+}
+
+/* ════════════════════════════════════════════════════════
+   REMOVE QUALIFICATION
+════════════════════════════════════════════════════════ */
+
+/** Populate the remove-qual <select> */
+async function populateRemoveSelect() {
+  const sel = document.getElementById('remove-qual-select');
+  if (!sel) return;
+
+  sel.innerHTML = `<option value="">Loading…</option>`;
+  try {
+    const quals = allQuals.length ? allQuals : await fetchQuals();
+    sel.innerHTML = `<option value="">— Select qualification —</option>` +
+      quals.map(q =>
+        `<option value="${q.id}">${escHtml(q.title)} (${q.nqf_level})</option>`
+      ).join('');
+  } catch {
+    sel.innerHTML = `<option value="">Failed to load</option>`;
+  }
+}
+
+async function confirmRemoveQual(qualId, name) {
+  if (!confirm(`Remove qualification "${name}"?\n\nAll units and uploaded materials will be permanently deleted.\nLearners with active enrolments cannot be removed — you will be warned.`)) return;
+
+  try {
+    const res  = await fetch(`/api/qualifications/${qualId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    showQualTableMsg(data.message, 'success');
+    await refreshQualTable();
+    populateQualSelects();
+  } catch (err) {
+    showQualTableMsg('Remove failed: ' + err.message, 'error');
+  }
+}
+
+/** Handler for the Remove button inside the "Remove qualification" panel */
+async function handleRemoveQualPanel() {
+  const sel  = document.getElementById('remove-qual-select');
+  const qualId = sel?.value;
+  const name   = sel?.options[sel.selectedIndex]?.text;
+
+  if (!qualId) {
+    showQualMsg('remove', 'Please select a qualification to remove.', 'error');
+    return;
+  }
+  await confirmRemoveQual(qualId, name);
+}
+
+/* ════════════════════════════════════════════════════════
+   UPLOAD MATERIAL  — unit <select> population
+════════════════════════════════════════════════════════ */
+async function onUploadQualChange() {
+  const qualId = document.getElementById('upload-qual-select')?.value;
+  const unitSel = document.getElementById('upload-unit-select');
+  if (!unitSel || !qualId) return;
+
+  unitSel.innerHTML = `<option>Loading units…</option>`;
+  try {
+    const res  = await fetch(`/api/qualifications/${qualId}/units`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    if (!data.units.length) {
+      unitSel.innerHTML = `<option value="">No units found</option>`;
+      return;
+    }
+    unitSel.innerHTML = data.units.map(u =>
+      `<option value="${u.id}">Unit ${u.unit_number} — ${escHtml(u.title)}</option>`
+    ).join('');
+  } catch (err) {
+    unitSel.innerHTML = `<option>Failed to load units</option>`;
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   POPULATE all qual <select> dropdowns (create/upload/remove)
+════════════════════════════════════════════════════════ */
+async function populateQualSelects() {
+  try {
+    const quals = await fetchQuals();
+
+    const options = quals.map(q =>
+      `<option value="${q.id}">${escHtml(q.title)} (${q.nqf_level})</option>`
+    ).join('');
+
+    // Upload material qual select
+    const uploadSel = document.getElementById('upload-qual-select');
+    if (uploadSel) {
+      uploadSel.innerHTML = `<option value="">— Select qualification —</option>` + options;
+    }
+
+    // Remove qual select
+    const removeSel = document.getElementById('remove-qual-select');
+    if (removeSel) {
+      removeSel.innerHTML = `<option value="">— Select qualification —</option>` + options;
+    }
+
+    // Enrol qualification select in add-user form (already in server.js, keep in sync)
+    const addUserQualSel = document.getElementById('qualification');
+    if (addUserQualSel) {
+      addUserQualSel.innerHTML = `<option value="">— None —</option>` +
+        quals.map(q => `<option value="${escHtml(q.title)}">${escHtml(q.title)}</option>`).join('');
+    }
+  } catch (err) {
+    console.warn('populateQualSelects:', err);
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   OVERRIDE toggleArea to hook qual-specific actions
+════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════
+   MESSAGE helpers
+════════════════════════════════════════════════════════ */
+function showQualMsg(panel, text, type) {
+  const id = `qual-msg-${panel}`;
+  let el   = document.getElementById(id);
+  if (!el) {
+    el    = document.createElement('div');
+    el.id = id;
+    el.style.cssText = 'margin:8px 0;font-size:13px;padding:8px 12px;border-radius:6px;';
+    const form = document.getElementById(`createQualForm`) ||
+                 document.getElementById(`qual-${panel}-area`);
+    if (form) form.appendChild(el);
+  }
+  el.textContent   = text;
+  el.className     = type === 'success' ? 'success-message' : 'error-message';
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function showQualTableMsg(text, type) {
+  let el = document.getElementById('qual-table-msg');
+  if (!el) {
+    el    = document.createElement('div');
+    el.id = 'qual-table-msg';
+    el.style.cssText = 'margin:8px 0;font-size:13px;padding:8px 12px;border-radius:6px;';
+    const area = document.getElementById('all-qual');
+    if (area) area.prepend(el);
+  }
+  el.textContent   = text;
+  el.className     = type === 'success' ? 'success-message' : 'error-message';
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}

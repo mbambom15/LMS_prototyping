@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const bcrypt = require('bcrypt');
+const qualificationsRoutes = require('./routes/qualifications');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -28,6 +29,7 @@ app.use(express.static('public'));
 // Routes
 app.use(authRoutes);
 app.use(attendanceRoutes);
+app.use(qualificationsRoutes);
 
 // Protect /admin
 app.use('/admin', isAuthenticated, isRole('admin'), express.static('public/admin'));
@@ -246,6 +248,14 @@ app.delete('/api/users/:id', isAuthenticated, isRole('admin'), async (req, res) 
     } finally {
         client.release();
     }
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) console.error('Logout error:', err);
+    res.clearCookie('connect.sid'); // clear session cookie
+    res.redirect('/login');
+  });
 });
 
 app.use((req, res) => res.status(404).send('Page not found'));

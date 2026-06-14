@@ -81,6 +81,7 @@
             <div class="sidebar-label">Management</div>
             <div class="sidebar-item" onclick="showSection('users', this)">Users &amp; roles</div>
             <div class="sidebar-item" onclick="showSection('qualifications', this)">Qualifications</div>
+            <div class="sidebar-item" onclick="showSection('deals', this); initDealSection()">Deal management</div>
             <div class="sidebar-label">Reports</div>
             <div class="sidebar-item" onclick="showSection('reports', this)">Compliance</div>
             <div class="sidebar-item" onclick="showSection('seta', this)">SETA reports</div>
@@ -292,7 +293,7 @@
             </div>
 
             <!-- ═══════════ QUALIFICATIONS ═══════════ -->
-            
+
             <div id="section-qualifications" class="section-page">
                 <div class="panel">
                     <div class="panel-header"><span class="panel-title">Qualifications</span></div>
@@ -498,7 +499,175 @@
                 </div>
             </div>
 
-            
+            <div id="section-deals" class="section-page">
+
+                <!-- ── CREATE DEAL ── -->
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Deal management</span></div>
+                    <div class="action-bar">
+                        <button class="btn btn-blue" onclick="toggleArea('add-deal'); initDealSection()">+ Create
+                            deal</button>
+                        <button class="btn" onclick="toggleArea('all-deals'); refreshDealTable()">View all
+                            deals</button>
+                    </div>
+
+                    <div id="add-deal" class="content-area">
+                        <form id="createDealForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Deal number <span
+                                            style="color:var(--color-red)">*</span></label>
+                                    <input type="number" id="cd-number" name="deal_number" required min="1000"
+                                        placeholder="Auto-assigned from 1000">
+                                    <span
+                                        style="font-size:11px;color:var(--text-tertiary);margin-top:3px;display:block">
+                                        Numbers start at 1000 and increment automatically.
+                                    </span>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Sponsor / company name <span
+                                            style="color:var(--color-red)">*</span></label>
+                                    <input type="text" id="cd-sponsor" name="sponsor" required
+                                        placeholder="e.g. Vodacom SA">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Qualification</label>
+                                    <select id="cd-qual" name="qualification_id">
+                                        <option value="">— None —</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Registration status</label>
+                                    <select id="cd-reg-status" name="registration_status">
+                                        <option value="">— Select —</option>
+                                        <option value="Registered">Registered</option>
+                                        <option value="Pending">Pending</option>
+                                        <option value="Not registered">Not registered</option>
+                                        <option value="Expired">Expired</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Start date</label>
+                                    <input type="date" id="cd-start" name="start_date">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Expected learner count</label>
+                                    <input type="number" id="cd-count" name="learners_count" min="1"
+                                        placeholder="e.g. 20">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-blue">Save deal</button>
+                            <div id="deal-msg-create"
+                                style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px;">
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- ── VIEW ALL ── -->
+                    <div id="all-deals" class="content-area">
+                        <table class="table" id="deals-table">
+                            <thead>
+                                <tr>
+                                    <th>Deal #</th>
+                                    <th>Sponsor</th>
+                                    <th>Qualification</th>
+                                    <th>Status</th>
+                                    <th>Start date</th>
+                                    <th>Learners</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7"
+                                        style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px">
+                                        Click "View all deals" to load.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- ── LINK LEARNERS ── -->
+                    <div id="link-learners" class="content-area">
+                        <input type="hidden" id="ll-deal-number">
+
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+                            <div style="font-size:14px;font-weight:600;color:var(--text-primary)">Link learners to</div>
+                            <span class="badge badge-deal-num" id="ll-deal-label">Deal #—</span>
+                        </div>
+
+                        <!-- Search -->
+                        <div class="form-group">
+                            <label class="form-label">Search learners</label>
+                            <div style="position:relative">
+                                <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none"
+                                    width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <path d="m21 21-4.35-4.35" />
+                                </svg>
+                                <input type="text" id="ll-search" placeholder="Search by name or email…"
+                                    oninput="onLearnerSearch(this.value)" style="padding-left:30px">
+                            </div>
+                        </div>
+
+                        <!-- Picker list -->
+                        <div id="ll-learner-list" class="ll-picker-list">
+                            <div style="padding:10px;color:var(--text-tertiary);font-size:12px">Open "Link learners"
+                                from a deal row to start.</div>
+                        </div>
+
+                        <!-- Selected pills -->
+                        <div style="margin-top:14px">
+                            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">
+                                Selected (<span id="ll-selected-count">0</span>)
+                            </div>
+                            <div id="ll-selected-pills" style="display:flex;flex-wrap:wrap;gap:6px;min-height:28px">
+                                <span style="color:var(--text-tertiary);font-size:12px">No learners selected yet.</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:16px;display:flex;gap:8px;align-items:center">
+                            <button id="ll-submit-btn" class="btn btn-blue" disabled onclick="submitLinkLearners()">
+                                Link selected learners
+                            </button>
+                            <button class="btn"
+                                onclick="selectedLearners.clear(); renderSelectedPills(); document.querySelectorAll('.content-area').forEach(e=>e.classList.remove('visible'))">
+                                Cancel
+                            </button>
+                        </div>
+                        <div id="deal-msg-link"
+                            style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px;">
+                        </div>
+                    </div>
+                </div>
+            </div><!-- end section-deals -->
+
+
+            <!-- ═══════════════════════════════════════════════════════════
+     DEAL DRAWER OVERLAY — paste just before </body>
+═══════════════════════════════════════════════════════════ -->
+
+            <div id="deal-drawer-overlay" onclick="closeDealDrawer()" style="
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200;
+  opacity:0;transition:opacity .2s;
+"></div>
+            <div id="deal-drawer" style="
+  display:none;position:fixed;top:0;right:0;height:100%;width:480px;max-width:100vw;
+  background:var(--bg-primary);box-shadow:-6px 0 24px rgba(0,0,0,0.12);
+  z-index:201;overflow-y:auto;transform:translateX(100%);transition:transform .25s ease;
+">
+                <div id="deal-drawer-content" style="padding:0">
+                    <!-- filled by renderDrawerContent() -->
+                </div>
+            </div>
+
+
             <!-- ═══════════ COMPLIANCE ═══════════ -->
             <div id="section-reports" class="section-page">
                 <div class="panel">

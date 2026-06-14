@@ -381,3 +381,247 @@
 .unit-edit-credits {
   flex-shrink: 0;
 }
+
+/* ══════════════════════════════════════════════════════════
+   deals.css  — Nkanyezi LMS  (append to dashboard.css)
+══════════════════════════════════════════════════════════ */
+
+/* ── Registration status badge ── */
+.badge-reg {
+  background: #eef2fc;
+  color: #3a4a8b;
+  border: 0.5px solid #c4cff0;
+}
+
+/* ── Deal number badge in link panel ── */
+.badge-deal-num {
+  background: #e6f1fb;
+  color: #185fa5;
+  border: 0.5px solid #b5d4f4;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 9px;
+  font-weight: 600;
+}
+
+/* ══════════════════════════════════════════════════════════
+   DRAWER
+══════════════════════════════════════════════════════════ */
+.drawer-loading {
+  padding: 40px 24px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 22px 24px 18px;
+  border-bottom: 0.5px solid var(--border-light);
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+  z-index: 1;
+}
+
+.drawer-deal-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 4px;
+}
+
+.drawer-deal-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.drawer-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.drawer-close:hover { background: var(--bg-secondary); color: var(--text-primary); }
+
+/* Meta grid */
+.drawer-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 0 24px;
+  border-bottom: 0.5px solid var(--border-light);
+}
+
+.drawer-meta-item {
+  padding: 13px 0;
+  border-bottom: 0.5px solid var(--border-light);
+}
+.drawer-meta-item:nth-child(odd)  { padding-right: 16px; border-right: 0.5px solid var(--border-light); }
+.drawer-meta-item:nth-child(even) { padding-left: 16px; }
+.drawer-meta-item:nth-last-child(-n+2) { border-bottom: none; }
+
+.drawer-meta-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 4px;
+}
+
+.drawer-meta-value {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Section title inside drawer */
+.drawer-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 16px 24px 8px;
+}
+
+/* Learner rows inside drawer */
+.drawer-learner-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  border-bottom: 0.5px solid var(--border-light);
+  transition: background .1s;
+}
+.drawer-learner-row:last-child { border-bottom: none; }
+.drawer-learner-row:hover { background: var(--bg-secondary); }
+
+.drawer-learner-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #dde8f6;
+  color: #185fa5;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.drawer-learner-info { flex: 1; min-width: 0; }
+.drawer-learner-name  { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.drawer-learner-email { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Progress pill */
+.drawer-progress-pill {
+  width: 56px;
+  height: 5px;
+  background: var(--bg-tertiary);
+  border-radius: 9px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.drawer-progress-bar {
+  height: 100%;
+  background: var(--green);
+  border-radius: 9px;
+  transition: width .3s;
+}
+
+/* Unlink button */
+.btn-red-outline {
+  background: none;
+  border: 0.5px solid #e8a8a8;
+  color: var(--red);
+  padding: 3px 7px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-red-outline:hover { background: var(--bg-danger); }
+.btn-red-outline:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ══════════════════════════════════════════════════════════
+   LINK LEARNERS PICKER
+══════════════════════════════════════════════════════════ */
+.ll-picker-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 0.5px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+
+.ll-learner-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  border-bottom: 0.5px solid var(--border-light);
+  transition: background .1s;
+  user-select: none;
+}
+.ll-learner-item:last-child { border-bottom: none; }
+.ll-learner-item:hover   { background: var(--bg-secondary); }
+.ll-learner-item.selected { background: #e9f1fc; }
+
+.ll-learner-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--blue);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.ll-learner-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #dde8f6;
+  color: #185fa5;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ll-learner-info  { flex: 1; min-width: 0; }
+.ll-learner-name  { font-size: 12px; font-weight: 500; color: var(--text-primary); display:flex; align-items:center; gap:6px; }
+.ll-learner-email { font-size: 11px; color: var(--text-tertiary); }
+
+/* Selected pills */
+.ll-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #dde8f6;
+  color: #185fa5;
+  border: 0.5px solid #b5d4f4;
+  border-radius: 9px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Scrollbar in picker */
+.ll-picker-list::-webkit-scrollbar { width: 5px; }
+.ll-picker-list::-webkit-scrollbar-track { background: var(--bg-secondary); }
+.ll-picker-list::-webkit-scrollbar-thumb { background: #c5d2e8; border-radius: 3px; }

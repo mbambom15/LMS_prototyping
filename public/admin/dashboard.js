@@ -33,6 +33,9 @@ function toggleArea(id) {
     if (id === 'all-qual') refreshQualTable();
     if (id === 'remove-qual') populateRemoveSelect();
     if (id === 'upload-material') onUploadQualChange();
+
+    if (id === 'all-deals') refreshDealTable();
+    if (id === 'add-deal') initDealSection();
   }
 }
 
@@ -51,12 +54,12 @@ function handleLogout() {
    USER TABLE — READ, INLINE EDIT, DELETE
 ══════════════════════════════════════════════════════════ */
 
-const ROLES    = ['learner', 'facilitator', 'assessor', 'grader', 'admin'];
+const ROLES = ['learner', 'facilitator', 'assessor', 'grader', 'admin'];
 const STATUSES = ['active', 'inactive', 'suspended', 'completed'];
 
 const badgeClass = {
-  active:    'badge-active',
-  inactive:  'badge-inactive',
+  active: 'badge-active',
+  inactive: 'badge-inactive',
   suspended: 'badge-suspended',
   completed: 'badge-completed',
 };
@@ -69,7 +72,7 @@ async function refreshUserTable() {
   tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px">Loading users…</td></tr>`;
 
   try {
-    const res  = await fetch('/api/users');
+    const res = await fetch('/api/users');
     const data = await res.json();
 
     if (!data.success) throw new Error(data.message);
@@ -89,9 +92,9 @@ async function refreshUserTable() {
 
 /** Render a single read-only user row */
 function renderUserRow(u) {
-  const name   = [u.name, u.surname].filter(Boolean).join(' ') || '—';
-  const badge  = badgeClass[u.status] || 'badge-inactive';
-  const qual   = u.qualification || '—';
+  const name = [u.name, u.surname].filter(Boolean).join(' ') || '—';
+  const badge = badgeClass[u.status] || 'badge-inactive';
+  const qual = u.qualification || '—';
 
   return `
     <tr data-id="${u.user_id}" data-role="${u.role}" data-status="${u.status}">
@@ -109,16 +112,16 @@ function renderUserRow(u) {
 
 /** Switch a row into inline-edit mode */
 function enterEditMode(btn) {
-  const row    = btn.closest('tr');
+  const row = btn.closest('tr');
   const userId = row.dataset.id;
-  const cells  = row.querySelectorAll('td');
+  const cells = row.querySelectorAll('td');
 
   // Read current values from data attributes or cell text
-  const currentRole   = row.dataset.role;
+  const currentRole = row.dataset.role;
   const currentStatus = row.dataset.status;
 
   // col 2 → role selector, col 4 → status selector
-  cells[2].innerHTML = selectHtml('role-select',   ROLES,    currentRole);
+  cells[2].innerHTML = selectHtml('role-select', ROLES, currentRole);
   cells[4].innerHTML = selectHtml('status-select', STATUSES, currentStatus);
 
   // Replace action buttons
@@ -129,20 +132,20 @@ function enterEditMode(btn) {
 
 /** Save the inline edit via PUT /api/users/:id */
 async function saveUserEdit(userId, btn) {
-  const row        = btn.closest('tr');
-  const roleSelect   = row.querySelector('.role-select');
+  const row = btn.closest('tr');
+  const roleSelect = row.querySelector('.role-select');
   const statusSelect = row.querySelector('.status-select');
-  const newRole   = roleSelect.value;
+  const newRole = roleSelect.value;
   const newStatus = statusSelect.value;
 
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
   try {
-    const res  = await fetch(`/api/users/${userId}`, {
-      method:  'PUT',
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ role: newRole, status: newStatus })
+      body: JSON.stringify({ role: newRole, status: newStatus })
     });
     const data = await res.json();
 
@@ -170,7 +173,7 @@ async function confirmDeleteUser(userId, name) {
   if (!confirm(`Remove user "${name}"?\n\nThis is permanent. Their records will be archived before removal.`)) return;
 
   try {
-    const res  = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+    const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
     const data = await res.json();
 
     if (!data.success) throw new Error(data.message);
@@ -187,7 +190,7 @@ async function confirmDeleteUser(userId, name) {
 /* ── Populate the modify-user and remove-user <select>s ── */
 async function populateUserSelects() {
   try {
-    const res  = await fetch('/api/users');
+    const res = await fetch('/api/users');
     const data = await res.json();
     if (!data.success) return;
 
@@ -219,7 +222,7 @@ function showTableMessage(text, type) {
     if (area) area.prepend(el);
   }
   el.textContent = text;
-  el.className   = type === 'success' ? 'success-message' : 'error-message';
+  el.className = type === 'success' ? 'success-message' : 'error-message';
   el.style.display = 'block';
   clearTimeout(el._timer);
   el._timer = setTimeout(() => { el.style.display = 'none'; }, 5000);
@@ -247,22 +250,22 @@ function escHtml(str) {
    QUAL PREVIEW
 ══════════════════════════════════════════════════════════ */
 const qualData = {
-  it:  { title: 'IT Support — NQF 4',             seta: 'MICT SETA · 12 months' },
-  ba:  { title: 'Business Administration — NQF 3', seta: 'SERVICES SETA · 12 months' },
-  fin: { title: 'Finance & Accounting — NQF 4',    seta: 'FASSET · 18 months' }
+  it: { title: 'IT Support — NQF 4', seta: 'MICT SETA · 12 months' },
+  ba: { title: 'Business Administration — NQF 3', seta: 'SERVICES SETA · 12 months' },
+  fin: { title: 'Finance & Accounting — NQF 4', seta: 'FASSET · 18 months' }
 };
 
 function updatePreview() {
-  const q     = document.getElementById('qual-select').value;
-  const uSel  = document.getElementById('unit-select');
+  const q = document.getElementById('qual-select').value;
+  const uSel = document.getElementById('unit-select');
   const uText = uSel.options[uSel.selectedIndex].text;
-  const uNum  = uSel.selectedIndex + 1;
-  const desc  = document.getElementById('desc-input').value;
-  document.getElementById('prev-title').textContent     = qualData[q].title;
-  document.getElementById('prev-seta').textContent      = qualData[q].seta;
+  const uNum = uSel.selectedIndex + 1;
+  const desc = document.getElementById('desc-input').value;
+  document.getElementById('prev-title').textContent = qualData[q].title;
+  document.getElementById('prev-seta').textContent = qualData[q].seta;
   document.getElementById('prev-unit-name').textContent = uText;
-  document.getElementById('prev-unit-num').textContent  = uNum;
-  document.getElementById('prev-desc').textContent      = desc || 'No description provided.';
+  document.getElementById('prev-unit-num').textContent = uNum;
+  document.getElementById('prev-desc').textContent = desc || 'No description provided.';
   const count = document.getElementById('file-list').children.length;
   document.getElementById('prev-file-count').textContent = count;
 }
@@ -271,20 +274,20 @@ function updatePreview() {
    FILE UPLOAD
 ══════════════════════════════════════════════════════════ */
 const typeMap = {
-  pdf:  { label: 'PDF', bg: '#fcebeb', color: '#a32d2d' },
-  mp4:  { label: 'MP4', bg: '#e6f1fb', color: '#185fa5' },
+  pdf: { label: 'PDF', bg: '#fcebeb', color: '#a32d2d' },
+  mp4: { label: 'MP4', bg: '#e6f1fb', color: '#185fa5' },
   pptx: { label: 'PPT', bg: '#faece7', color: '#993c1d' },
-  ppt:  { label: 'PPT', bg: '#faece7', color: '#993c1d' },
+  ppt: { label: 'PPT', bg: '#faece7', color: '#993c1d' },
   docx: { label: 'DOC', bg: '#faeeda', color: '#633806' },
-  doc:  { label: 'DOC', bg: '#faeeda', color: '#633806' }
+  doc: { label: 'DOC', bg: '#faeeda', color: '#633806' }
 };
 
 function handleFiles(files) {
   const list = document.getElementById('file-list');
   const grid = document.getElementById('prev-materials');
   Array.from(files).forEach(f => {
-    const ext  = f.name.split('.').pop().toLowerCase();
-    const t    = typeMap[ext] || { label: ext.toUpperCase(), bg: '#f1efe8', color: '#5f5e5a' };
+    const ext = f.name.split('.').pop().toLowerCase();
+    const t = typeMap[ext] || { label: ext.toUpperCase(), bg: '#f1efe8', color: '#5f5e5a' };
     const size = f.size > 1048576
       ? (f.size / 1048576).toFixed(1) + ' MB'
       : (f.size / 1024).toFixed(0) + ' KB';
@@ -345,11 +348,11 @@ function showMessage(text, type) {
     msgDiv = document.createElement('div');
     msgDiv.id = 'addUserMessage';
     msgDiv.style.marginTop = '12px';
-    msgDiv.style.fontSize  = '13px';
+    msgDiv.style.fontSize = '13px';
     form.appendChild(msgDiv);
   }
-  msgDiv.textContent   = text;
-  msgDiv.className     = type === 'success' ? 'success-message' : 'error-message';
+  msgDiv.textContent = text;
+  msgDiv.className = type === 'success' ? 'success-message' : 'error-message';
   msgDiv.style.display = 'block';
   setTimeout(() => { msgDiv.style.display = 'none'; }, 5000);
 }
@@ -360,15 +363,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   addUserForm.addEventListener('submit', async function (e) {
     e.preventDefault();
-    const first_name    = document.getElementById('first_name').value.trim();
-    const last_name     = document.getElementById('last_name').value.trim();
-    const email         = document.getElementById('email').value.trim();
-    const password      = document.getElementById('password').value;
-    const id_number     = document.getElementById('id_number').value.trim();
-    const phone         = document.getElementById('phone').value.trim();
-    const gender        = document.getElementById('gender').value;
-    const role          = document.getElementById('role').value;
-    const status        = document.getElementById('status').value;
+    const first_name = document.getElementById('first_name').value.trim();
+    const last_name = document.getElementById('last_name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const id_number = document.getElementById('id_number').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const gender = document.getElementById('gender').value;
+    const role = document.getElementById('role').value;
+    const status = document.getElementById('status').value;
     const qualification = document.getElementById('qualification').value;
 
     if (!first_name || !last_name || !email || !password) {
@@ -376,16 +379,16 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    const submitBtn    = addUserForm.querySelector('button[type="submit"]');
+    const submitBtn = addUserForm.querySelector('button[type="submit"]');
     const originalText = submitBtn.textContent;
-    submitBtn.disabled    = true;
+    submitBtn.disabled = true;
     submitBtn.textContent = 'Saving…';
 
     try {
       const response = await fetch('/api/create-user', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ first_name, last_name, email, password, id_number, phone, gender, role, status, qualification })
+        body: JSON.stringify({ first_name, last_name, email, password, id_number, phone, gender, role, status, qualification })
       });
       const result = await response.json();
       if (result.success) {
@@ -398,7 +401,7 @@ document.addEventListener('DOMContentLoaded', function () {
       console.error('Fetch error:', err);
       showMessage('Could not connect to server. Is it running?', 'error');
     } finally {
-      submitBtn.disabled    = false;
+      submitBtn.disabled = false;
       submitBtn.textContent = originalText;
     }
   });
@@ -429,7 +432,7 @@ function initQualSection() {
    FETCH helpers
 ════════════════════════════════════════════════════════ */
 async function fetchQuals() {
-  const res  = await fetch('/api/qualifications');
+  const res = await fetch('/api/qualifications');
   const data = await res.json();
   if (!data.success) throw new Error(data.message);
   allQuals = data.qualifications;
@@ -445,27 +448,27 @@ document.addEventListener('DOMContentLoaded', () => {
   if (createForm) {
     createForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn  = createForm.querySelector('button[type="submit"]');
+      const btn = createForm.querySelector('button[type="submit"]');
       const orig = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Saving…';
 
       const payload = {
-        title:           document.getElementById('cq-title').value.trim(),
-        nqf_level:       document.getElementById('cq-nqf').value,
-        seta:            document.getElementById('cq-seta').value.trim(),
+        title: document.getElementById('cq-title').value.trim(),
+        nqf_level: document.getElementById('cq-nqf').value,
+        seta: document.getElementById('cq-seta').value.trim(),
         duration_months: document.getElementById('cq-duration').value,
-        description:     document.getElementById('cq-desc').value.trim(),
-        unit_count:      document.getElementById('cq-units').value,
-        total_credits:   document.getElementById('cq-credits').value,
-        is_active:       document.getElementById('cq-status').value === 'true',
+        description: document.getElementById('cq-desc').value.trim(),
+        unit_count: document.getElementById('cq-units').value,
+        total_credits: document.getElementById('cq-credits').value,
+        is_active: document.getElementById('cq-status').value === 'true',
       };
 
       try {
-        const res  = await fetch('/api/qualifications', {
-          method:  'POST',
+        const res = await fetch('/api/qualifications', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify(payload),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.message);
@@ -511,7 +514,7 @@ function renderQualRow(q) {
     : `<span class="badge badge-inactive">Draft</span>`;
 
   const nqfBadge = q.nqf_level?.replace('NQF', '').trim()
-    ? `<span class="badge badge-nqf${q.nqf_level.replace('NQF','').trim()}">${q.nqf_level}</span>`
+    ? `<span class="badge badge-nqf${q.nqf_level.replace('NQF', '').trim()}">${q.nqf_level}</span>`
     : `<span class="badge">${q.nqf_level}</span>`;
 
   return `
@@ -537,10 +540,10 @@ function renderQualRow(q) {
 ════════════════════════════════════════════════════════ */
 async function toggleQualStatus(qualId, newStatus) {
   try {
-    const res  = await fetch(`/api/qualifications/${qualId}/status`, {
-      method:  'PATCH',
+    const res = await fetch(`/api/qualifications/${qualId}/status`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ is_active: newStatus }),
+      body: JSON.stringify({ is_active: newStatus }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
@@ -571,7 +574,7 @@ async function openUpdatePanel(qualId) {
   if (inner) inner.innerHTML = `<div style="padding:20px;color:var(--text-secondary);font-size:13px">Loading…</div>`;
 
   try {
-    const res  = await fetch(`/api/qualifications/${qualId}`);
+    const res = await fetch(`/api/qualifications/${qualId}`);
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
     renderUpdateForm(data.qualification, data.units);
@@ -643,36 +646,36 @@ async function saveQualUpdate() {
   if (!qualId) return;
 
   const payload = {
-    title:           document.getElementById('uq-title')?.value.trim(),
-    seta:            document.getElementById('uq-seta')?.value.trim(),
+    title: document.getElementById('uq-title')?.value.trim(),
+    seta: document.getElementById('uq-seta')?.value.trim(),
     duration_months: document.getElementById('uq-duration')?.value,
-    is_active:       document.getElementById('uq-status')?.value === 'true',
+    is_active: document.getElementById('uq-status')?.value === 'true',
     units: []
   };
 
   // Collect unit edits
   document.querySelectorAll('#units-edit-list .unit-edit-row').forEach(row => {
     payload.units.push({
-      id:          row.dataset.unitId,
-      title:       row.querySelector('.unit-title-input').value.trim(),
+      id: row.dataset.unitId,
+      title: row.querySelector('.unit-title-input').value.trim(),
       description: row.querySelector('.unit-desc-input').value.trim(),
-      credits:     parseInt(row.querySelector('.unit-credits-input').value, 10) || null,
+      credits: parseInt(row.querySelector('.unit-credits-input').value, 10) || null,
     });
   });
 
   try {
-    const res  = await fetch(`/api/qualifications/${qualId}`, {
-      method:  'PUT',
+    const res = await fetch(`/api/qualifications/${qualId}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
 
     const msgEl = document.getElementById('update-qual-msg');
     if (msgEl) {
-      msgEl.textContent   = '✓ Qualification updated successfully.';
-      msgEl.className     = 'success-message';
+      msgEl.textContent = '✓ Qualification updated successfully.';
+      msgEl.className = 'success-message';
       msgEl.style.display = 'block';
       setTimeout(() => { msgEl.style.display = 'none'; }, 4000);
     }
@@ -680,8 +683,8 @@ async function saveQualUpdate() {
   } catch (err) {
     const msgEl = document.getElementById('update-qual-msg');
     if (msgEl) {
-      msgEl.textContent   = 'Error: ' + err.message;
-      msgEl.className     = 'error-message';
+      msgEl.textContent = 'Error: ' + err.message;
+      msgEl.className = 'error-message';
       msgEl.style.display = 'block';
     }
   }
@@ -719,7 +722,7 @@ async function confirmRemoveQual(qualId, name) {
   if (!confirm(`Remove qualification "${name}"?\n\nAll units and uploaded materials will be permanently deleted.\nLearners with active enrolments cannot be removed — you will be warned.`)) return;
 
   try {
-    const res  = await fetch(`/api/qualifications/${qualId}`, { method: 'DELETE' });
+    const res = await fetch(`/api/qualifications/${qualId}`, { method: 'DELETE' });
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
     showQualTableMsg(data.message, 'success');
@@ -732,9 +735,9 @@ async function confirmRemoveQual(qualId, name) {
 
 /** Handler for the Remove button inside the "Remove qualification" panel */
 async function handleRemoveQualPanel() {
-  const sel  = document.getElementById('remove-qual-select');
+  const sel = document.getElementById('remove-qual-select');
   const qualId = sel?.value;
-  const name   = sel?.options[sel.selectedIndex]?.text;
+  const name = sel?.options[sel.selectedIndex]?.text;
 
   if (!qualId) {
     showQualMsg('remove', 'Please select a qualification to remove.', 'error');
@@ -753,7 +756,7 @@ async function onUploadQualChange() {
 
   unitSel.innerHTML = `<option>Loading units…</option>`;
   try {
-    const res  = await fetch(`/api/qualifications/${qualId}/units`);
+    const res = await fetch(`/api/qualifications/${qualId}/units`);
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
     if (!data.units.length) {
@@ -811,17 +814,17 @@ async function populateQualSelects() {
 ════════════════════════════════════════════════════════ */
 function showQualMsg(panel, text, type) {
   const id = `qual-msg-${panel}`;
-  let el   = document.getElementById(id);
+  let el = document.getElementById(id);
   if (!el) {
-    el    = document.createElement('div');
+    el = document.createElement('div');
     el.id = id;
     el.style.cssText = 'margin:8px 0;font-size:13px;padding:8px 12px;border-radius:6px;';
     const form = document.getElementById(`createQualForm`) ||
-                 document.getElementById(`qual-${panel}-area`);
+      document.getElementById(`qual-${panel}-area`);
     if (form) form.appendChild(el);
   }
-  el.textContent   = text;
-  el.className     = type === 'success' ? 'success-message' : 'error-message';
+  el.textContent = text;
+  el.className = type === 'success' ? 'success-message' : 'error-message';
   el.style.display = 'block';
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
@@ -830,15 +833,479 @@ function showQualMsg(panel, text, type) {
 function showQualTableMsg(text, type) {
   let el = document.getElementById('qual-table-msg');
   if (!el) {
-    el    = document.createElement('div');
+    el = document.createElement('div');
     el.id = 'qual-table-msg';
     el.style.cssText = 'margin:8px 0;font-size:13px;padding:8px 12px;border-radius:6px;';
     const area = document.getElementById('all-qual');
     if (area) area.prepend(el);
   }
+  el.textContent = text;
+  el.className = type === 'success' ? 'success-message' : 'error-message';
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+/* ══════════════════════════════════════════════════════════
+   deals.js  — Nkanyezi LMS Admin
+   Deal management: create, view, detail drawer, link learners
+══════════════════════════════════════════════════════════ */
+
+/* ── State ── */
+let dealLearnerPool  = [];   // all available learners fetched once
+let selectedLearners = new Set(); // UUIDs chosen for linking
+
+/* ════════════════════════════════════════════════════════
+   BOOTSTRAP  — auto-populate deal number when panel opens
+════════════════════════════════════════════════════════ */
+async function initDealSection() {
+  await populateDealQualSelect();
+  await prefillDealNumber();
+}
+
+async function prefillDealNumber() {
+  try {
+    const res  = await fetch('/api/deals/next-number');
+    const data = await res.json();
+    if (data.success) {
+      const el = document.getElementById('cd-number');
+      if (el && !el.value) el.value = data.next_number;
+    }
+  } catch { /* silent */ }
+}
+
+async function populateDealQualSelect() {
+  try {
+    const res  = await fetch('/api/qualifications');
+    const data = await res.json();
+    if (!data.success) return;
+
+    const options = `<option value="">— None —</option>` +
+      data.qualifications.map(q =>
+        `<option value="${q.id}">${escHtml(q.title)} (${q.nqf_level})</option>`
+      ).join('');
+
+    ['cd-qual', 'ld-qual'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = options;
+    });
+  } catch (err) {
+    console.warn('populateDealQualSelect:', err);
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   CREATE DEAL
+════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('createDealForm');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn  = form.querySelector('button[type="submit"]');
+    const orig = btn.textContent;
+    btn.disabled    = true;
+    btn.textContent = 'Saving…';
+
+    const payload = {
+      deal_number:         parseInt(document.getElementById('cd-number').value, 10),
+      sponsor:             document.getElementById('cd-sponsor').value.trim(),
+      qualification_id:    document.getElementById('cd-qual').value || null,
+      registration_status: document.getElementById('cd-reg-status').value.trim(),
+      start_date:          document.getElementById('cd-start').value || null,
+      learners_count:      parseInt(document.getElementById('cd-count').value, 10) || null,
+    };
+
+    try {
+      const res  = await fetch('/api/deals', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      showDealMsg('create', '✓ Deal created successfully.', 'success');
+      form.reset();
+      await prefillDealNumber();
+    } catch (err) {
+      showDealMsg('create', 'Error: ' + err.message, 'error');
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = orig;
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════
+   VIEW ALL DEALS  — table
+════════════════════════════════════════════════════════ */
+async function refreshDealTable() {
+  const tbody = document.querySelector('#all-deals table tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px">Loading deals…</td></tr>`;
+
+  try {
+    const res  = await fetch('/api/deals');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    if (!data.deals.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px">No deals yet. Create one above.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.deals.map(d => renderDealRow(d)).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--color-red);font-size:13px">Failed to load: ${escHtml(err.message)}</td></tr>`;
+  }
+}
+
+function renderDealRow(d) {
+  const regBadge = d.registration_status
+    ? `<span class="badge badge-reg">${escHtml(d.registration_status)}</span>`
+    : `<span style="color:var(--text-tertiary);font-size:12px">—</span>`;
+
+  const startFmt = d.start_date
+    ? new Date(d.start_date).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—';
+
+  const qual = d.qualification_title
+    ? `${escHtml(d.qualification_title)} <span class="badge badge-nqf4" style="font-size:9px">${escHtml(d.nqf_level)}</span>`
+    : '<span style="color:var(--text-tertiary)">—</span>';
+
+  return `
+    <tr data-deal="${d.deal_number}">
+      <td style="font-weight:600;color:var(--blue)">${d.deal_number}</td>
+      <td>${escHtml(d.sponsor)}</td>
+      <td>${qual}</td>
+      <td>${regBadge}</td>
+      <td>${startFmt}</td>
+      <td>
+        <span class="deal-learner-count">${d.linked_learners}</span>
+        <span style="color:var(--text-tertiary);font-size:11px"> / ${d.learners_count ?? '—'}</span>
+      </td>
+      <td>
+        <a class="btn btn-xs btn-blue" href="deal-details.html?deal=${d.deal_number}" target="_blank">More info</a>
+        <button class="btn btn-xs" onclick="openLinkLearners(${d.deal_number})">Link learners</button>
+      </td>
+    </tr>`;
+}
+
+/* ════════════════════════════════════════════════════════
+   DEAL DETAIL DRAWER  — slides in from right
+════════════════════════════════════════════════════════ */
+async function openDealDrawer(dealNumber) {
+  const overlay = document.getElementById('deal-drawer-overlay');
+  const drawer  = document.getElementById('deal-drawer');
+  const content = document.getElementById('deal-drawer-content');
+  if (!overlay || !drawer) return;
+
+  content.innerHTML = `<div class="drawer-loading">Loading deal ${dealNumber}…</div>`;
+  overlay.classList.add('visible');
+  drawer.classList.add('visible');
+  document.body.style.overflow = 'hidden';
+
+  try {
+    const res  = await fetch(`/api/deals/${dealNumber}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    renderDrawerContent(data.deal, data.learners);
+  } catch (err) {
+    content.innerHTML = `<div style="padding:24px;color:var(--color-red);font-size:13px">Failed to load: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function closeDealDrawer() {
+  const overlay = document.getElementById('deal-drawer-overlay');
+  const drawer  = document.getElementById('deal-drawer');
+  if (overlay) overlay.classList.remove('visible');
+  if (drawer)  drawer.classList.remove('visible');
+  document.body.style.overflow = '';
+}
+
+function renderDrawerContent(deal, learners) {
+  const content = document.getElementById('deal-drawer-content');
+
+  const startFmt = deal.start_date
+    ? new Date(deal.start_date).toLocaleDateString('en-ZA', { day: '2-digit', month: 'long', year: 'numeric' })
+    : 'Not set';
+
+  const learnersHtml = learners.length
+    ? learners.map(l => {
+        const name = [l.name, l.surname].filter(Boolean).join(' ') || '—';
+        const prog = l.progress_pct != null ? `${parseFloat(l.progress_pct).toFixed(0)}%` : '—';
+        const statusBadge = `<span class="badge ${l.status === 'active' ? 'badge-active' : 'badge-inactive'}">${escHtml(l.status)}</span>`;
+        return `
+          <div class="drawer-learner-row">
+            <div class="drawer-learner-avatar">${initials(name)}</div>
+            <div class="drawer-learner-info">
+              <div class="drawer-learner-name">${escHtml(name)}</div>
+              <div class="drawer-learner-email">${escHtml(l.email)}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              ${statusBadge}
+              <div class="drawer-progress-pill">
+                <div class="drawer-progress-bar" style="width:${prog === '—' ? 0 : prog}"></div>
+              </div>
+              <span style="font-size:11px;color:var(--text-secondary);min-width:28px">${prog}</span>
+              <button class="btn btn-xs btn-red-outline" onclick="unlinkLearner(${deal.deal_number}, '${l.user_id}', this)" title="Unlink from deal">✕</button>
+            </div>
+          </div>`;
+      }).join('')
+    : `<div style="padding:16px 0;color:var(--text-tertiary);font-size:13px;text-align:center">No learners linked to this deal yet.</div>`;
+
+  content.innerHTML = `
+    <div class="drawer-header">
+      <div>
+        <div class="drawer-deal-num">Deal #${deal.deal_number}</div>
+        <div class="drawer-deal-name">${escHtml(deal.sponsor)}</div>
+      </div>
+      <button class="drawer-close" onclick="closeDealDrawer()">✕</button>
+    </div>
+
+    <div class="drawer-meta-grid">
+      <div class="drawer-meta-item">
+        <div class="drawer-meta-label">Qualification</div>
+        <div class="drawer-meta-value">${escHtml(deal.qualification_title || '—')}</div>
+      </div>
+      <div class="drawer-meta-item">
+        <div class="drawer-meta-label">NQF Level</div>
+        <div class="drawer-meta-value">${deal.nqf_level ? `<span class="badge badge-nqf4">${escHtml(deal.nqf_level)}</span>` : '—'}</div>
+      </div>
+      <div class="drawer-meta-item">
+        <div class="drawer-meta-label">Start date</div>
+        <div class="drawer-meta-value">${startFmt}</div>
+      </div>
+      <div class="drawer-meta-item">
+        <div class="drawer-meta-label">Registration status</div>
+        <div class="drawer-meta-value">${deal.registration_status ? `<span class="badge badge-reg">${escHtml(deal.registration_status)}</span>` : '—'}</div>
+      </div>
+      <div class="drawer-meta-item">
+        <div class="drawer-meta-label">Expected learners</div>
+        <div class="drawer-meta-value">${deal.learners_count ?? '—'}</div>
+      </div>
+      <div class="drawer-meta-item">
+        <div class="drawer-meta-label">Linked learners</div>
+        <div class="drawer-meta-value" style="font-weight:600;color:var(--blue)">${learners.length}</div>
+      </div>
+    </div>
+
+    <div class="drawer-section-title">Learners on this deal</div>
+    <div id="drawer-learners-list">
+      ${learnersHtml}
+    </div>
+
+    <div style="padding:16px 0 8px">
+      <button class="btn btn-blue" style="width:100%" onclick="closeDealDrawer(); openLinkLearners(${deal.deal_number})">
+        + Link more learners
+      </button>
+    </div>
+  `;
+}
+
+/* ════════════════════════════════════════════════════════
+   UNLINK LEARNER from drawer
+════════════════════════════════════════════════════════ */
+async function unlinkLearner(dealNumber, learnerId, btn) {
+  if (!confirm('Remove this learner from the deal?')) return;
+  btn.disabled = true;
+  try {
+    const res  = await fetch(`/api/deals/${dealNumber}/learners/${learnerId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    // Remove row from drawer without full reload
+    btn.closest('.drawer-learner-row').remove();
+    const list = document.getElementById('drawer-learners-list');
+    if (list && !list.querySelector('.drawer-learner-row')) {
+      list.innerHTML = `<div style="padding:16px 0;color:var(--text-tertiary);font-size:13px;text-align:center">No learners linked to this deal yet.</div>`;
+    }
+    // Refresh table in background
+    if (document.querySelector('#all-deals table tbody')) refreshDealTable();
+  } catch (err) {
+    alert('Could not unlink: ' + err.message);
+    btn.disabled = false;
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   LINK LEARNERS PANEL
+════════════════════════════════════════════════════════ */
+async function openLinkLearners(dealNumber) {
+  // Make link-learners area visible
+  document.querySelectorAll('.content-area').forEach(el => el.classList.remove('visible'));
+  const area = document.getElementById('link-learners');
+  if (!area) return;
+  area.classList.add('visible');
+  area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  document.getElementById('ll-deal-number').value = dealNumber;
+  document.getElementById('ll-deal-label').textContent = `Deal #${dealNumber}`;
+
+  selectedLearners.clear();
+  renderSelectedPills();
+
+  await loadAvailableLearners('');
+}
+
+async function loadAvailableLearners(search) {
+  const list = document.getElementById('ll-learner-list');
+  if (!list) return;
+
+  list.innerHTML = `<div style="padding:10px;color:var(--text-secondary);font-size:12px">Searching…</div>`;
+
+  try {
+    const url  = `/api/learners/available${search ? `?search=${encodeURIComponent(search)}` : ''}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    dealLearnerPool = data.learners;
+    renderLearnerPickerList(data.learners);
+  } catch (err) {
+    list.innerHTML = `<div style="padding:10px;color:var(--color-red);font-size:12px">Error: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderLearnerPickerList(learners) {
+  const list = document.getElementById('ll-learner-list');
+  if (!list) return;
+
+  if (!learners.length) {
+    list.innerHTML = `<div style="padding:10px;color:var(--text-tertiary);font-size:12px">No learners found.</div>`;
+    return;
+  }
+
+  list.innerHTML = learners.map(l => {
+    const name    = [l.name, l.surname].filter(Boolean).join(' ') || '—';
+    const checked = selectedLearners.has(l.user_id) ? 'checked' : '';
+    const dealTag = l.current_deal
+      ? `<span class="badge badge-reg" style="font-size:9px">Deal #${l.current_deal}</span>`
+      : '';
+    return `
+      <label class="ll-learner-item${selectedLearners.has(l.user_id) ? ' selected' : ''}">
+        <input type="checkbox" value="${l.user_id}" ${checked} onchange="toggleLearnerPick(this, '${l.user_id}', '${escHtml(name)}')">
+        <div class="ll-learner-avatar">${initials(name)}</div>
+        <div class="ll-learner-info">
+          <div class="ll-learner-name">${escHtml(name)} ${dealTag}</div>
+          <div class="ll-learner-email">${escHtml(l.email)}</div>
+        </div>
+      </label>`;
+  }).join('');
+}
+
+function toggleLearnerPick(checkbox, userId, name) {
+  const label = checkbox.closest('label');
+  if (checkbox.checked) {
+    selectedLearners.add(userId);
+    label.classList.add('selected');
+  } else {
+    selectedLearners.delete(userId);
+    label.classList.remove('selected');
+  }
+  renderSelectedPills();
+}
+
+function renderSelectedPills() {
+  const container = document.getElementById('ll-selected-pills');
+  const countEl   = document.getElementById('ll-selected-count');
+  const submitBtn = document.getElementById('ll-submit-btn');
+  if (!container) return;
+
+  const count = selectedLearners.size;
+  if (countEl) countEl.textContent = count;
+  if (submitBtn) submitBtn.disabled = count === 0;
+
+  if (!count) {
+    container.innerHTML = `<span style="color:var(--text-tertiary);font-size:12px">No learners selected yet.</span>`;
+    return;
+  }
+
+  container.innerHTML = [...selectedLearners].map(id => {
+    const learner = dealLearnerPool.find(l => l.user_id === id);
+    const name    = learner ? [learner.name, learner.surname].filter(Boolean).join(' ') : id.slice(0, 8);
+    return `<span class="ll-pill">${escHtml(name)} <span onclick="removePick('${id}')" style="cursor:pointer;margin-left:4px;opacity:.7">✕</span></span>`;
+  }).join('');
+}
+
+function removePick(userId) {
+  selectedLearners.delete(userId);
+  // Uncheck in list if visible
+  const cb = document.querySelector(`#ll-learner-list input[value="${userId}"]`);
+  if (cb) {
+    cb.checked = false;
+    cb.closest('label')?.classList.remove('selected');
+  }
+  renderSelectedPills();
+}
+
+/* debounced search */
+let _searchTimer;
+function onLearnerSearch(val) {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => loadAvailableLearners(val), 280);
+}
+
+async function submitLinkLearners() {
+  const dealNumber = document.getElementById('ll-deal-number')?.value;
+  if (!dealNumber || !selectedLearners.size) return;
+
+  const btn  = document.getElementById('ll-submit-btn');
+  const orig = btn.textContent;
+  btn.disabled    = true;
+  btn.textContent = 'Linking…';
+
+  try {
+    const res  = await fetch(`/api/deals/${dealNumber}/learners`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ learner_ids: [...selectedLearners] }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    showDealMsg('link', `✓ ${data.message}`, 'success');
+    selectedLearners.clear();
+    renderSelectedPills();
+    await loadAvailableLearners('');
+    document.getElementById('ll-search').value = '';
+
+    // Refresh deal table if visible
+    if (document.querySelector('#all-deals table tbody')) refreshDealTable();
+  } catch (err) {
+    showDealMsg('link', 'Error: ' + err.message, 'error');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = orig;
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   UTILS
+════════════════════════════════════════════════════════ */
+function initials(name) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('');
+}
+
+function showDealMsg(panel, text, type) {
+  const id = `deal-msg-${panel}`;
+  let el   = document.getElementById(id);
+  if (!el) return;
   el.textContent   = text;
   el.className     = type === 'success' ? 'success-message' : 'error-message';
   el.style.display = 'block';
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
+
+/* expose for toggleArea hook in dashboard.js */
+window.initDealSection   = initDealSection;
+window.refreshDealTable  = refreshDealTable;
+window.openDealDrawer    = openDealDrawer;
+window.closeDealDrawer   = closeDealDrawer;
+window.openLinkLearners  = openLinkLearners;
+window.unlinkLearner     = unlinkLearner;
+window.onLearnerSearch   = onLearnerSearch;
+window.submitLinkLearners = submitLinkLearners;
+window.toggleLearnerPick = toggleLearnerPick;
+window.removePick        = removePick;

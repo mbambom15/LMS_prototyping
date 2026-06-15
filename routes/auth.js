@@ -5,17 +5,17 @@ const pool = require('../db/pool');
 const router = express.Router();
 
 router.get('/login', (req, res) => {
-    if(req.session.user){
-        redirectToDashboard(req.session.user.role, res);
-    }
-    res.sendFile('login.html', { root: 'public' });
+  if (req.session.user) {
+    redirectToDashboard(req.session.user.role, res);
+  }
+  res.sendFile('login.html', { root: 'public' });
 });
 
 // Handle login form POST
 router.post('/login', async (req, res) => {
   const { uname, psw } = req.body;
   if (!uname || !psw) {
-    return res.status(400).send('Email and password required');
+    return res.redirect('/login?error=' + encodeURIComponent('Email and password required'));
   }
 
   try {
@@ -27,12 +27,12 @@ router.post('/login', async (req, res) => {
     const user = result.rows[0];
 
     if (!user) {
-      return res.status(401).send('Invalid email or password');
+      return res.redirect('/login?error=' + encodeURIComponent('Invalid email or password'));
     }
 
     // Check account status
     if (user.status !== 'active') {
-      return res.status(401).send('Account is not active. Contact support.');
+      return res.redirect('/login?error=' + encodeURIComponent('Account is not active. Contact support.'));
     }
 
     // Compare password with bcrypt hash
@@ -55,7 +55,7 @@ router.post('/login', async (req, res) => {
     redirectToDashboard(user.role, res);
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).send('Internal server error');
+    return res.redirect('/login?error=' + encodeURIComponent('Internal server error. Please try again.'));
   }
 });
 

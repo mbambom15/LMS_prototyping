@@ -1,24 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nkanyezi Academy — Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap"
+        rel="stylesheet">
     <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        :root {
-            --amber:   #c97a2f;
-            --amber-lt: #e8a95a;
-            --dark:    #0d0b09;
-            --card-bg: rgba(10, 8, 6, 0.72);
-            --border:  rgba(201, 122, 47, 0.35);
-            --text:    #f0ece6;
-            --muted:   #a89880;
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
-        html, body {
+        :root {
+            --amber: #c97a2f;
+            --amber-lt: #e8a95a;
+            --dark: #0d0b09;
+            --card-bg: rgba(10, 8, 6, 0.72);
+            --border: rgba(201, 122, 47, 0.35);
+            --text: #f0ece6;
+            --muted: #a89880;
+        }
+
+        html,
+        body {
             height: 100%;
         }
 
@@ -30,7 +40,7 @@
             align-items: stretch;
         }
 
-    
+
         .bg {
             position: fixed;
             inset: 0;
@@ -39,19 +49,18 @@
             background-position: center right;
             z-index: 0;
         }
+
         .bg::after {
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(
-                105deg,
-                rgba(10,8,6,0.92) 0%,
-                rgba(10,8,6,0.80) 42%,
-                rgba(10,8,6,0.18) 100%
-            );
+            background: linear-gradient(105deg,
+                    rgba(10, 8, 6, 0.92) 0%,
+                    rgba(10, 8, 6, 0.80) 42%,
+                    rgba(10, 8, 6, 0.18) 100%);
         }
 
-      
+
         .page {
             position: relative;
             z-index: 1;
@@ -61,7 +70,7 @@
             padding: 40px 6vw;
         }
 
-    
+
         .card {
             width: 100%;
             max-width: 380px;
@@ -71,19 +80,27 @@
             padding: 48px 40px 44px;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
-            box-shadow: 0 8px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04) inset;
-            animation: fadeUp 0.55s cubic-bezier(.22,.68,0,1.2) both;
+            box-shadow: 0 8px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+            animation: fadeUp 0.55s cubic-bezier(.22, .68, 0, 1.2) both;
         }
 
         @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(24px); }
-            to   { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
-       
+
         .brand {
             margin-bottom: 36px;
         }
+
         .brand-label {
             font-size: 10px;
             letter-spacing: 0.22em;
@@ -93,6 +110,7 @@
             font-weight: 500;
             margin-bottom: 6px;
         }
+
         .brand-name {
             font-family: 'Cormorant Garamond', serif;
             font-size: 26px;
@@ -101,7 +119,7 @@
             line-height: 1.15;
         }
 
-        
+
         .form-group {
             display: flex;
             flex-direction: column;
@@ -121,8 +139,8 @@
         input[type="password"] {
             width: 100%;
             padding: 11px 14px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(201,122,47,0.25);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(201, 122, 47, 0.25);
             border-radius: 3px;
             color: var(--text);
             font-family: 'DM Sans', sans-serif;
@@ -130,14 +148,16 @@
             outline: none;
             transition: border-color 0.2s, background 0.2s;
         }
+
         input[type="text"]::placeholder,
         input[type="password"]::placeholder {
-            color: rgba(168,152,128,0.45);
+            color: rgba(168, 152, 128, 0.45);
         }
+
         input[type="text"]:focus,
         input[type="password"]:focus {
             border-color: var(--amber);
-            background: rgba(255,255,255,0.08);
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .btn-login {
@@ -156,22 +176,32 @@
             cursor: pointer;
             transition: background 0.2s, transform 0.1s;
         }
-        .btn-login:hover  { background: var(--amber-lt); }
-        .btn-login:active { transform: scale(0.99); }
+
+        .btn-login:hover {
+            background: var(--amber-lt);
+        }
+
+        .btn-login:active {
+            transform: scale(0.99);
+        }
 
         .forgot {
             margin-top: 18px;
             text-align: center;
         }
+
         .forgot a {
             font-size: 12px;
             color: var(--muted);
             text-decoration: none;
             transition: color 0.2s;
         }
-        .forgot a:hover { color: var(--amber-lt); }
 
-       
+        .forgot a:hover {
+            color: var(--amber-lt);
+        }
+
+
         @media (max-width: 600px) {
             .page {
                 justify-content: center;
@@ -179,15 +209,18 @@
                 align-items: center;
                 min-height: 100vh;
             }
+
             .bg::after {
-                background: rgba(10,8,6,0.82);
+                background: rgba(10, 8, 6, 0.82);
             }
+
             .card {
                 padding: 36px 28px 32px;
             }
         }
     </style>
 </head>
+
 <body>
 
     <div class="bg"></div>
@@ -197,6 +230,8 @@
             <header class="brand">
                 <h1 class="brand-name">Nkanyezi Academy</h1>
             </header>
+            <div id="login-error" style="display: none; color: #ffb4a2; 
+                margin-bottom: 18px; font-size: 13px; text-align: center;"></div>
 
             <form action="/login" method="POST">
                 <div class="form-group">
@@ -217,6 +252,17 @@
             </form>
         </div>
     </div>
-
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const error = params.get('error');
+        if (error) {
+            const errorDiv = document.getElementById('login-error');
+            errorDiv.textContent = decodeURIComponent(error);
+            errorDiv.style.display = 'block';
+            // optional: clean the URL without reloading
+            history.replaceState(null, '', window.location.pathname);
+        }
+    </script>
 </body>
+
 </html>

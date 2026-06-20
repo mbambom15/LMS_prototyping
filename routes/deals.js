@@ -25,6 +25,7 @@ router.get('/api/deals', ...guard, async (req, res) => {
       FROM deals d
       LEFT JOIN qualifications q ON q.qualification_id = d.qualification_id
       LEFT JOIN learners l ON l.deal_number = d.deal_number
+      WHERE d.is_deleted = FALSE
       GROUP BY d.deal_number, q.title, q.nqf_level, q.qualification_id
       ORDER BY d.deal_number DESC
     `);
@@ -44,6 +45,9 @@ router.get('/api/deals/next-number', ...guard, async (req, res) => {
     const result = await pool.query(`
       SELECT COALESCE(MAX(deal_number), 999) + 1 AS next_number FROM deals
     `);
+    // Note: deliberately NOT filtering out soft-deleted deals here —
+    // deal numbers should never be reused, even for archived deals,
+    // so a deleted deal's number stays retired permanently.
     const next = Math.max(result.rows[0].next_number, 1000);
     res.json({ success: true, next_number: next });
   } catch (err) {
@@ -73,7 +77,7 @@ router.get('/api/deals/:number', ...guard, async (req, res) => {
         q.qualification_id
       FROM deals d
       LEFT JOIN qualifications q ON q.qualification_id = d.qualification_id
-      WHERE d.deal_number = $1
+      WHERE d.deal_number = $1 AND d.is_deleted = FALSE
     `, [dealNumber]);
 
     if (!dealRes.rows.length) {
@@ -147,29 +151,45 @@ router.post('/api/deals', ...guard, async (req, res) => {
 /* ─────────────────────────────────────────
    PUT /api/deals/:number
    Update deal fields
+
+   IMPORTANT: every field here is "update only if explicitly provided".
+   We distinguish "field not sent" (undefined) from "field sent as empty/null"
+   (intentional clear, e.g. clearing the qualification) using a sentinel
+   default of `undefined` and a per-field COALESCE-in-JS pattern below.
+   This prevents partial-payload PATCH-style calls (like the inline row
+   editor, which only sends sponsor/qualification_id/registration_status)
+   from silently wiping out start_date or learners_count — the bug that
+   was making the start date disappear on every inline edit.
 ───────────────────────────────────────── */
 router.put('/api/deals/:number', ...guard, async (req, res) => {
   const dealNumber = parseInt(req.params.number, 10);
   if (isNaN(dealNumber)) return res.status(400).json({ success: false, message: 'Invalid deal number' });
 
-  const { sponsor, qualification_id, registration_status, start_date, learners_count } = req.body;
+  const body = req.body || {};
+
+  // Helper: only touch a column if the key was actually present in the
+  // request body. This lets callers send a partial payload (e.g. just
+  // { sponsor, qualification_id, registration_status }) without nuking
+  // columns they didn't mean to touch, while still allowing an explicit
+  // null/'' to intentionally clear a field (e.g. unsetting qualification_id).
+  const has = (key) => Object.prototype.hasOwnProperty.call(body, key);
 
   try {
     const result = await pool.query(`
       UPDATE deals SET
         sponsor             = COALESCE($1, sponsor),
-        qualification_id    = $2,
-        registration_status = COALESCE($3, registration_status),
-        start_date          = $4,
-        learners_count      = COALESCE($5, learners_count)
-      WHERE deal_number = $6
+        qualification_id    = CASE WHEN $2 THEN $3 ELSE qualification_id END,
+        registration_status = CASE WHEN $4 THEN $5 ELSE registration_status END,
+        start_date           = CASE WHEN $6 THEN $7 ELSE start_date END,
+        learners_count       = CASE WHEN $8 THEN $9 ELSE learners_count END
+      WHERE deal_number = $10 AND is_deleted = FALSE
       RETURNING deal_number
     `, [
-      sponsor?.trim() || null,
-      qualification_id || null,
-      registration_status || null,
-      start_date || null,
-      learners_count || null,
+      body.sponsor?.trim() || null,
+      has('qualification_id'), body.qualification_id || null,
+      has('registration_status'), body.registration_status || null,
+      has('start_date'), body.start_date || null,
+      has('learners_count'), body.learners_count || null,
       dealNumber,
     ]);
 
@@ -178,6 +198,75 @@ router.put('/api/deals/:number', ...guard, async (req, res) => {
   } catch (err) {
     console.error('PUT /api/deals/:number:', err);
     res.status(500).json({ success: false, message: 'Failed to update deal' });
+  }
+});
+
+/* ─────────────────────────────────────────
+   DELETE /api/deals/:number
+   Soft-deletes a deal (marks is_deleted = TRUE, sets deleted_at).
+   The row is never physically removed — this preserves the deal
+   for SETA audit history. Any learners, facilitators, assessors,
+   or enrolments still pointing at this deal are auto-unlinked
+   (deal_number set to NULL) so they don't end up silently attached
+   to an archived deal. The deal number itself is retired permanently
+   and will never be reused by /api/deals/next-number.
+───────────────────────────────────────── */
+router.delete('/api/deals/:number', ...guard, async (req, res) => {
+  const dealNumber = parseInt(req.params.number, 10);
+  if (isNaN(dealNumber)) return res.status(400).json({ success: false, message: 'Invalid deal number' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const dealCheck = await client.query(
+      'SELECT deal_number FROM deals WHERE deal_number = $1 AND is_deleted = FALSE',
+      [dealNumber]
+    );
+    if (!dealCheck.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Deal not found or already removed' });
+    }
+
+    // Auto-unlink everyone currently attached to this deal
+    const unlinkLearners = await client.query(
+      'UPDATE learners SET deal_number = NULL WHERE deal_number = $1',
+      [dealNumber]
+    );
+    await client.query(
+      'UPDATE facilitators SET deal_number = NULL WHERE deal_number = $1',
+      [dealNumber]
+    );
+    await client.query(
+      'UPDATE assessors SET deal_number = NULL WHERE deal_number = $1',
+      [dealNumber]
+    );
+    await client.query(
+      'UPDATE enrolments SET deal_number = NULL WHERE deal_number = $1',
+      [dealNumber]
+    );
+
+    // Soft-delete the deal itself
+    await client.query(
+      `UPDATE deals SET is_deleted = TRUE, deleted_at = NOW() WHERE deal_number = $1`,
+      [dealNumber]
+    );
+
+    await client.query('COMMIT');
+
+    const unlinkedCount = unlinkLearners.rowCount || 0;
+    res.json({
+      success: true,
+      message: unlinkedCount
+        ? `Deal ${dealNumber} archived. ${unlinkedCount} learner(s) were unlinked.`
+        : `Deal ${dealNumber} archived.`,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('DELETE /api/deals/:number:', err);
+    res.status(500).json({ success: false, message: 'Failed to remove deal' });
+  } finally {
+    client.release();
   }
 });
 

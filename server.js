@@ -71,17 +71,11 @@ app.post('/api/create-user', isAuthenticated, isRole('admin'), async (req, res) 
         }
 
         if (role === 'learner' && qualification?.trim()) {
-            const qualRes = await client.query(
-                `SELECT qualification_id FROM qualifications WHERE title ILIKE $1 LIMIT 1`,
-                [`%${qualification}%`]
+            await client.query(
+                `INSERT INTO enrolments (learner_id, qualification_id, start_date, status, progress_pct)
+         VALUES ($1,$2,CURRENT_DATE,'active',0)`,
+                [newUserId, qualification]
             );
-            if (qualRes.rows.length) {
-                await client.query(
-                    `INSERT INTO enrolments (learner_id, qualification_id, start_date, status, progress_pct)
-                     VALUES ($1,$2,CURRENT_DATE,'active',0)`,
-                    [newUserId, qualRes.rows[0].qualification_id]
-                );
-            }
         }
 
         await client.query('COMMIT');
@@ -253,11 +247,11 @@ app.delete('/api/users/:id', isAuthenticated, isRole('admin'), async (req, res) 
 });
 
 app.get('/logout', (req, res) => {
-  req.session.destroy(err => {
-    if (err) console.error('Logout error:', err);
-    res.clearCookie('connect.sid'); // clear session cookie
-    res.redirect('/login');
-  });
+    req.session.destroy(err => {
+        if (err) console.error('Logout error:', err);
+        res.clearCookie('connect.sid'); // clear session cookie
+        res.redirect('/login');
+    });
 });
 
 app.use((req, res) => res.status(404).send('Page not found'));

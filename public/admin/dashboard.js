@@ -28,6 +28,7 @@ function toggleArea(id) {
 
     if (id === 'all-users') refreshUserTable();
     if (id === 'modify-user' || id === 'remove-user') populateUserSelects();
+    if (id === 'add-user') populateQualSelects();
 
     // Qualification‑related triggers (merged from the old second function)
     if (id === 'all-qual') refreshQualTable();
@@ -798,7 +799,7 @@ async function populateQualSelects() {
     const addUserQualSel = document.getElementById('qualification');
     if (addUserQualSel) {
       addUserQualSel.innerHTML = `<option value="">— None —</option>` +
-        quals.map(q => `<option value="${escHtml(q.title)}">${escHtml(q.title)}</option>`).join('');
+        quals.map(q => `<option value="${q.id}">${escHtml(q.title)}</option>`).join('');
     }
   } catch (err) {
     console.warn('populateQualSelects:', err);
@@ -847,12 +848,24 @@ function showQualTableMsg(text, type) {
 }
 /* ══════════════════════════════════════════════════════════
    deals.js  — Nkanyezi LMS Admin
-   Deal management: create, view, detail drawer, link learners
+   Deal management: create, view, detail drawer, link learners,
+   inline row editing (sponsor / qualification / status)
 ══════════════════════════════════════════════════════════ */
 
 /* ── State ── */
-let dealLearnerPool  = [];   // all available learners fetched once
+let dealLearnerPool = [];   // all available learners fetched once
 let selectedLearners = new Set(); // UUIDs chosen for linking
+let dealQualOptionsCache = []; // cached qualification list for edit-mode <select>s
+
+const DEAL_REG_STATUSES = [
+  'Registered',
+  'Pending',
+  'Not registered',
+  'In progress',
+  'Verification with SETA',
+  'Inactive',
+  'Expired',
+];
 
 /* ════════════════════════════════════════════════════════
    BOOTSTRAP  — auto-populate deal number when panel opens
@@ -864,7 +877,7 @@ async function initDealSection() {
 
 async function prefillDealNumber() {
   try {
-    const res  = await fetch('/api/deals/next-number');
+    const res = await fetch('/api/deals/next-number');
     const data = await res.json();
     if (data.success) {
       const el = document.getElementById('cd-number');
@@ -875,9 +888,11 @@ async function prefillDealNumber() {
 
 async function populateDealQualSelect() {
   try {
-    const res  = await fetch('/api/qualifications');
+    const res = await fetch('/api/qualifications');
     const data = await res.json();
     if (!data.success) return;
+
+    dealQualOptionsCache = data.qualifications; // cache for inline edit rows too
 
     const options = `<option value="">— None —</option>` +
       data.qualifications.map(q =>
@@ -893,6 +908,20 @@ async function populateDealQualSelect() {
   }
 }
 
+/** Make sure we have the qualification list cached (used when opening edit mode
+ *  without having visited the create-deal panel first) */
+async function ensureDealQualCache() {
+  if (dealQualOptionsCache.length) return dealQualOptionsCache;
+  try {
+    const res = await fetch('/api/qualifications');
+    const data = await res.json();
+    if (data.success) dealQualOptionsCache = data.qualifications;
+  } catch (err) {
+    console.warn('ensureDealQualCache:', err);
+  }
+  return dealQualOptionsCache;
+}
+
 /* ════════════════════════════════════════════════════════
    CREATE DEAL
 ════════════════════════════════════════════════════════ */
@@ -902,25 +931,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn  = form.querySelector('button[type="submit"]');
+    const btn = form.querySelector('button[type="submit"]');
     const orig = btn.textContent;
-    btn.disabled    = true;
+    btn.disabled = true;
     btn.textContent = 'Saving…';
 
     const payload = {
-      deal_number:         parseInt(document.getElementById('cd-number').value, 10),
-      sponsor:             document.getElementById('cd-sponsor').value.trim(),
-      qualification_id:    document.getElementById('cd-qual').value || null,
+      deal_number: parseInt(document.getElementById('cd-number').value, 10),
+      sponsor: document.getElementById('cd-sponsor').value.trim(),
+      qualification_id: document.getElementById('cd-qual').value || null,
       registration_status: document.getElementById('cd-reg-status').value.trim(),
-      start_date:          document.getElementById('cd-start').value || null,
-      learners_count:      parseInt(document.getElementById('cd-count').value, 10) || null,
+      start_date: document.getElementById('cd-start').value || null,
+      learners_count: parseInt(document.getElementById('cd-count').value, 10) || null,
     };
 
     try {
-      const res  = await fetch('/api/deals', {
-        method:  'POST',
+      const res = await fetch('/api/deals', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
@@ -931,7 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       showDealMsg('create', 'Error: ' + err.message, 'error');
     } finally {
-      btn.disabled    = false;
+      btn.disabled = false;
       btn.textContent = orig;
     }
   });
@@ -947,7 +976,7 @@ async function refreshDealTable() {
   tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px">Loading deals…</td></tr>`;
 
   try {
-    const res  = await fetch('/api/deals');
+    const res = await fetch('/api/deals');
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
 
@@ -956,6 +985,9 @@ async function refreshDealTable() {
       return;
     }
     tbody.innerHTML = data.deals.map(d => renderDealRow(d)).join('');
+
+    // Warm the qualification cache in the background so Edit mode opens instantly
+    ensureDealQualCache();
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--color-red);font-size:13px">Failed to load: ${escHtml(err.message)}</td></tr>`;
   }
@@ -975,21 +1007,150 @@ function renderDealRow(d) {
     : '<span style="color:var(--text-tertiary)">—</span>';
 
   return `
-    <tr data-deal="${d.deal_number}">
+    <tr data-deal="${d.deal_number}"
+        data-sponsor="${escHtml(d.sponsor)}"
+        data-qual-id="${d.qualification_id || ''}"
+        data-reg-status="${escHtml(d.registration_status || '')}">
       <td style="font-weight:600;color:var(--blue)">${d.deal_number}</td>
-      <td>${escHtml(d.sponsor)}</td>
-      <td>${qual}</td>
-      <td>${regBadge}</td>
+      <td class="deal-cell-sponsor">${escHtml(d.sponsor)}</td>
+      <td class="deal-cell-qual">${qual}</td>
+      <td class="deal-cell-status">${regBadge}</td>
       <td>${startFmt}</td>
       <td>
         <span class="deal-learner-count">${d.linked_learners}</span>
         <span style="color:var(--text-tertiary);font-size:11px"> / ${d.learners_count ?? '—'}</span>
       </td>
-      <td>
-        <a class="btn btn-xs btn-blue" href="deal-details.html?deal=${d.deal_number}" target="_blank">More info</a>
+      <td class="deal-cell-actions">
+        <button class="btn btn-xs btn-blue" onclick="enterDealEditMode(this)">Edit</button>
+        <a class="btn btn-xs" href="deal-details.html?deal=${d.deal_number}" target="_blank">More info</a>
         <button class="btn btn-xs" onclick="openLinkLearners(${d.deal_number})">Link learners</button>
+        <button class="btn btn-xs btn-red" onclick="confirmRemoveDeal(${d.deal_number}, '${escHtml(d.sponsor)}', ${d.linked_learners})">Remove</button>
       </td>
     </tr>`;
+}
+
+/* ════════════════════════════════════════════════════════
+   INLINE ROW EDIT — sponsor / qualification / registration status
+   (mirrors the Users table enterEditMode → saveUserEdit pattern)
+════════════════════════════════════════════════════════ */
+
+/** Switch a deal row into inline-edit mode */
+async function enterDealEditMode(btn) {
+  const row = btn.closest('tr');
+  const cells = row.querySelectorAll('td');
+  const currentSponsor = row.dataset.sponsor || '';
+  const currentQualId = row.dataset.qualId || '';
+  const currentRegStatus = row.dataset.regStatus || '';
+
+  // Make sure we have qualification options to populate the select with
+  const quals = await ensureDealQualCache();
+
+  // col 1 → sponsor text input
+  cells[1].innerHTML = `
+    <input type="text" class="deal-edit-sponsor" value="${escHtml(currentSponsor)}"
+      style="font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);width:100%">`;
+
+  // col 2 → qualification select
+  const qualOptions = `<option value="">— None —</option>` +
+    quals.map(q =>
+      `<option value="${q.id}"${q.id === currentQualId ? ' selected' : ''}>${escHtml(q.title)} (${q.nqf_level})</option>`
+    ).join('');
+  cells[2].innerHTML = `
+    <select class="deal-edit-qual" style="font-size:12px;padding:4px 6px;border-radius:4px;border:1px solid var(--border);width:100%">
+      ${qualOptions}
+    </select>`;
+
+  // col 3 → registration status select
+  cells[3].innerHTML = selectHtml('deal-edit-status', DEAL_REG_STATUSES, currentRegStatus);
+
+  // col 6 → Save / Cancel buttons
+  cells[6].innerHTML = `
+    <button class="btn btn-xs btn-green" onclick="saveDealEdit('${row.dataset.deal}', this)">Save</button>
+    <button class="btn btn-xs"           onclick="refreshDealTable()">Cancel</button>`;
+}
+
+/** Save the inline deal edit via PUT /api/deals/:number */
+async function saveDealEdit(dealNumber, btn) {
+  const row = btn.closest('tr');
+  const sponsorInput = row.querySelector('.deal-edit-sponsor');
+  const qualSelect = row.querySelector('.deal-edit-qual');
+  const statusSelect = row.querySelector('.deal-edit-status');
+
+  const newSponsor = sponsorInput.value.trim();
+  if (!newSponsor) {
+    showDealTableMsg('Sponsor name cannot be empty.', 'error');
+    return;
+  }
+
+  const payload = {
+    sponsor: newSponsor,
+    qualification_id: qualSelect.value || null,
+    registration_status: statusSelect.value || null,
+  };
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await fetch(`/api/deals/${dealNumber}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    showDealTableMsg('Deal updated successfully.', 'success');
+    await refreshDealTable();   // re-render fresh from DB
+  } catch (err) {
+    console.error('saveDealEdit:', err);
+    showDealTableMsg('Update failed: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+}
+
+/** Small inline message above the deals table (mirrors showTableMessage for users) */
+function showDealTableMsg(text, type) {
+  let el = document.getElementById('deal-table-msg');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'deal-table-msg';
+    el.style.cssText = 'margin:8px 0;font-size:13px;padding:8px 12px;border-radius:6px;';
+    const area = document.getElementById('all-deals');
+    if (area) area.prepend(el);
+  }
+  el.textContent = text;
+  el.className = type === 'success' ? 'success-message' : 'error-message';
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+/* ════════════════════════════════════════════════════════
+   REMOVE DEAL — soft delete (archives, never hard-deletes)
+   Learners/facilitators/assessors/enrolments still linked to
+   this deal are auto-unlinked server-side; the deal number
+   itself is retired and never reused.
+════════════════════════════════════════════════════════ */
+async function confirmRemoveDeal(dealNumber, sponsor, linkedLearners) {
+  const warning = linkedLearners > 0
+    ? `Remove deal #${dealNumber} (${sponsor})?\n\nThis deal currently has ${linkedLearners} learner(s) linked. They will be automatically unlinked — their enrolments are not affected, only the deal association.\n\nThe deal will be archived (not permanently deleted) for SETA audit purposes.`
+    : `Remove deal #${dealNumber} (${sponsor})?\n\nThe deal will be archived (not permanently deleted) for SETA audit purposes.`;
+
+  if (!confirm(warning)) return;
+
+  try {
+    const res = await fetch(`/api/deals/${dealNumber}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    showDealTableMsg(data.message, 'success');
+    await refreshDealTable();
+  } catch (err) {
+    console.error('confirmRemoveDeal:', err);
+    showDealTableMsg('Remove failed: ' + err.message, 'error');
+  }
 }
 
 /* ════════════════════════════════════════════════════════
@@ -997,7 +1158,7 @@ function renderDealRow(d) {
 ════════════════════════════════════════════════════════ */
 async function openDealDrawer(dealNumber) {
   const overlay = document.getElementById('deal-drawer-overlay');
-  const drawer  = document.getElementById('deal-drawer');
+  const drawer = document.getElementById('deal-drawer');
   const content = document.getElementById('deal-drawer-content');
   if (!overlay || !drawer) return;
 
@@ -1007,7 +1168,7 @@ async function openDealDrawer(dealNumber) {
   document.body.style.overflow = 'hidden';
 
   try {
-    const res  = await fetch(`/api/deals/${dealNumber}`);
+    const res = await fetch(`/api/deals/${dealNumber}`);
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
     renderDrawerContent(data.deal, data.learners);
@@ -1018,9 +1179,9 @@ async function openDealDrawer(dealNumber) {
 
 function closeDealDrawer() {
   const overlay = document.getElementById('deal-drawer-overlay');
-  const drawer  = document.getElementById('deal-drawer');
+  const drawer = document.getElementById('deal-drawer');
   if (overlay) overlay.classList.remove('visible');
-  if (drawer)  drawer.classList.remove('visible');
+  if (drawer) drawer.classList.remove('visible');
   document.body.style.overflow = '';
 }
 
@@ -1033,10 +1194,10 @@ function renderDrawerContent(deal, learners) {
 
   const learnersHtml = learners.length
     ? learners.map(l => {
-        const name = [l.name, l.surname].filter(Boolean).join(' ') || '—';
-        const prog = l.progress_pct != null ? `${parseFloat(l.progress_pct).toFixed(0)}%` : '—';
-        const statusBadge = `<span class="badge ${l.status === 'active' ? 'badge-active' : 'badge-inactive'}">${escHtml(l.status)}</span>`;
-        return `
+      const name = [l.name, l.surname].filter(Boolean).join(' ') || '—';
+      const prog = l.progress_pct != null ? `${parseFloat(l.progress_pct).toFixed(0)}%` : '—';
+      const statusBadge = `<span class="badge ${l.status === 'active' ? 'badge-active' : 'badge-inactive'}">${escHtml(l.status)}</span>`;
+      return `
           <div class="drawer-learner-row">
             <div class="drawer-learner-avatar">${initials(name)}</div>
             <div class="drawer-learner-info">
@@ -1052,7 +1213,7 @@ function renderDrawerContent(deal, learners) {
               <button class="btn btn-xs btn-red-outline" onclick="unlinkLearner(${deal.deal_number}, '${l.user_id}', this)" title="Unlink from deal">✕</button>
             </div>
           </div>`;
-      }).join('')
+    }).join('')
     : `<div style="padding:16px 0;color:var(--text-tertiary);font-size:13px;text-align:center">No learners linked to this deal yet.</div>`;
 
   content.innerHTML = `
@@ -1111,7 +1272,7 @@ async function unlinkLearner(dealNumber, learnerId, btn) {
   if (!confirm('Remove this learner from the deal?')) return;
   btn.disabled = true;
   try {
-    const res  = await fetch(`/api/deals/${dealNumber}/learners/${learnerId}`, { method: 'DELETE' });
+    const res = await fetch(`/api/deals/${dealNumber}/learners/${learnerId}`, { method: 'DELETE' });
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
     // Remove row from drawer without full reload
@@ -1155,8 +1316,8 @@ async function loadAvailableLearners(search) {
   list.innerHTML = `<div style="padding:10px;color:var(--text-secondary);font-size:12px">Searching…</div>`;
 
   try {
-    const url  = `/api/learners/available${search ? `?search=${encodeURIComponent(search)}` : ''}`;
-    const res  = await fetch(url);
+    const url = `/api/learners/available${search ? `?search=${encodeURIComponent(search)}` : ''}`;
+    const res = await fetch(url);
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
 
@@ -1177,7 +1338,7 @@ function renderLearnerPickerList(learners) {
   }
 
   list.innerHTML = learners.map(l => {
-    const name    = [l.name, l.surname].filter(Boolean).join(' ') || '—';
+    const name = [l.name, l.surname].filter(Boolean).join(' ') || '—';
     const checked = selectedLearners.has(l.user_id) ? 'checked' : '';
     const dealTag = l.current_deal
       ? `<span class="badge badge-reg" style="font-size:9px">Deal #${l.current_deal}</span>`
@@ -1208,7 +1369,7 @@ function toggleLearnerPick(checkbox, userId, name) {
 
 function renderSelectedPills() {
   const container = document.getElementById('ll-selected-pills');
-  const countEl   = document.getElementById('ll-selected-count');
+  const countEl = document.getElementById('ll-selected-count');
   const submitBtn = document.getElementById('ll-submit-btn');
   if (!container) return;
 
@@ -1223,7 +1384,7 @@ function renderSelectedPills() {
 
   container.innerHTML = [...selectedLearners].map(id => {
     const learner = dealLearnerPool.find(l => l.user_id === id);
-    const name    = learner ? [learner.name, learner.surname].filter(Boolean).join(' ') : id.slice(0, 8);
+    const name = learner ? [learner.name, learner.surname].filter(Boolean).join(' ') : id.slice(0, 8);
     return `<span class="ll-pill">${escHtml(name)} <span onclick="removePick('${id}')" style="cursor:pointer;margin-left:4px;opacity:.7">✕</span></span>`;
   }).join('');
 }
@@ -1250,16 +1411,16 @@ async function submitLinkLearners() {
   const dealNumber = document.getElementById('ll-deal-number')?.value;
   if (!dealNumber || !selectedLearners.size) return;
 
-  const btn  = document.getElementById('ll-submit-btn');
+  const btn = document.getElementById('ll-submit-btn');
   const orig = btn.textContent;
-  btn.disabled    = true;
+  btn.disabled = true;
   btn.textContent = 'Linking…';
 
   try {
-    const res  = await fetch(`/api/deals/${dealNumber}/learners`, {
-      method:  'POST',
+    const res = await fetch(`/api/deals/${dealNumber}/learners`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ learner_ids: [...selectedLearners] }),
+      body: JSON.stringify({ learner_ids: [...selectedLearners] }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
@@ -1275,7 +1436,7 @@ async function submitLinkLearners() {
   } catch (err) {
     showDealMsg('link', 'Error: ' + err.message, 'error');
   } finally {
-    btn.disabled    = false;
+    btn.disabled = false;
     btn.textContent = orig;
   }
 }
@@ -1289,23 +1450,26 @@ function initials(name) {
 
 function showDealMsg(panel, text, type) {
   const id = `deal-msg-${panel}`;
-  let el   = document.getElementById(id);
+  let el = document.getElementById(id);
   if (!el) return;
-  el.textContent   = text;
-  el.className     = type === 'success' ? 'success-message' : 'error-message';
+  el.textContent = text;
+  el.className = type === 'success' ? 'success-message' : 'error-message';
   el.style.display = 'block';
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
 /* expose for toggleArea hook in dashboard.js */
-window.initDealSection   = initDealSection;
-window.refreshDealTable  = refreshDealTable;
-window.openDealDrawer    = openDealDrawer;
-window.closeDealDrawer   = closeDealDrawer;
-window.openLinkLearners  = openLinkLearners;
-window.unlinkLearner     = unlinkLearner;
-window.onLearnerSearch   = onLearnerSearch;
+window.initDealSection = initDealSection;
+window.refreshDealTable = refreshDealTable;
+window.openDealDrawer = openDealDrawer;
+window.closeDealDrawer = closeDealDrawer;
+window.openLinkLearners = openLinkLearners;
+window.unlinkLearner = unlinkLearner;
+window.onLearnerSearch = onLearnerSearch;
 window.submitLinkLearners = submitLinkLearners;
 window.toggleLearnerPick = toggleLearnerPick;
-window.removePick        = removePick;
+window.removePick = removePick;
+window.enterDealEditMode = enterDealEditMode;
+window.saveDealEdit = saveDealEdit;
+window.confirmRemoveDeal = confirmRemoveDeal;

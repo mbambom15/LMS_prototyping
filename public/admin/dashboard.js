@@ -158,6 +158,7 @@ function toggleArea(id) {
 
     if (id === 'all-deals') refreshDealTable();
     if (id === 'add-deal') initDealSection();
+    if (id === 'assign-facilitators') refreshFacilitatorAssignment();
   }
 }
 
@@ -966,13 +967,16 @@ function showQualTableMsg(text, type) {
 /* ══════════════════════════════════════════════════════════
    deals.js  — Nkanyezi LMS Admin
    Deal management: create, view, detail drawer, link learners,
-   inline row editing (sponsor / qualification / status)
+   inline row editing (sponsor / qualification / status),
+   facilitator assignment
 ══════════════════════════════════════════════════════════ */
 
 /* ── State ── */
 let dealLearnerPool = [];   // all available learners fetched once
 let selectedLearners = new Set(); // UUIDs chosen for linking
 let dealQualOptionsCache = []; // cached qualification list for edit-mode <select>s
+let facilitatorPool = [];        // cached facilitators with deal counts (assign panel)
+let facilitatorOverviewDeals = []; // deals with facilitator info (assign panel)
 
 const DEAL_REG_STATUSES = [
   'Registered',
@@ -1559,6 +1563,188 @@ async function submitLinkLearners() {
 }
 
 /* ════════════════════════════════════════════════════════
+   FACILITATOR ASSIGNMENT PANEL
+   One facilitator can hold many deals; one deal has exactly
+   one facilitator. Two columns: deals still needing a
+   facilitator, and deals already assigned (with reassign).
+   The picker dropdown shows every facilitator, visually
+   muting (not disabling) ones who already carry deals so the
+   admin can see at a glance who has spare capacity — but any
+   facilitator can still be picked, including for a second,
+   third, etc. deal.
+════════════════════════════════════════════════════════ */
+async function refreshFacilitatorAssignment() {
+  const unassignedList = document.getElementById('fa-unassigned-list');
+  const assignedList = document.getElementById('fa-assigned-list');
+  if (!unassignedList || !assignedList) return;
+
+  unassignedList.innerHTML = `<div class="fa-loading">Loading…</div>`;
+  assignedList.innerHTML = `<div class="fa-loading">Loading…</div>`;
+
+  try {
+    const [dealsData, facData] = await Promise.all([
+      fetch('/api/deals/facilitator-overview').then(r => r.json()),
+      fetch('/api/facilitators/assignable').then(r => r.json()),
+    ]);
+    if (!dealsData.success) throw new Error(dealsData.message);
+    if (!facData.success) throw new Error(facData.message);
+
+    facilitatorOverviewDeals = dealsData.deals;
+    facilitatorPool = facData.facilitators;
+
+    renderFacilitatorOverview();
+  } catch (err) {
+    console.error('refreshFacilitatorAssignment:', err);
+    unassignedList.innerHTML = `<div class="fa-error">Failed to load: ${escHtml(err.message)}</div>`;
+    assignedList.innerHTML = '';
+  }
+}
+
+function renderFacilitatorOverview() {
+  const unassigned = facilitatorOverviewDeals.filter(d => !d.facilitator_id);
+  const assigned = facilitatorOverviewDeals.filter(d => d.facilitator_id);
+
+  const unassignedCountEl = document.getElementById('fa-unassigned-count');
+  const assignedCountEl = document.getElementById('fa-assigned-count');
+  if (unassignedCountEl) unassignedCountEl.textContent = unassigned.length;
+  if (assignedCountEl) assignedCountEl.textContent = assigned.length;
+
+  const unassignedList = document.getElementById('fa-unassigned-list');
+  const assignedList = document.getElementById('fa-assigned-list');
+  if (!unassignedList || !assignedList) return;
+
+  unassignedList.innerHTML = unassigned.length
+    ? unassigned.map(d => renderFaDealRow(d, false)).join('')
+    : `<div class="fa-empty">Every deal has a facilitator assigned.</div>`;
+
+  assignedList.innerHTML = assigned.length
+    ? assigned.map(d => renderFaDealRow(d, true)).join('')
+    : `<div class="fa-empty">No deals assigned yet.</div>`;
+}
+
+function renderFaDealRow(d, isAssigned) {
+  const qual = d.qualification_title ? escHtml(d.qualification_title) : 'No qualification set';
+  const facName = isAssigned
+    ? [d.facilitator_name, d.facilitator_surname].filter(Boolean).join(' ') || '—'
+    : '';
+
+  return `
+    <div class="fa-deal-row" data-deal="${d.deal_number}">
+      <div class="fa-deal-main">
+        <div class="fa-deal-info">
+          <span class="fa-deal-num">#${d.deal_number}</span>
+          <span class="fa-deal-sponsor">${escHtml(d.sponsor)}</span>
+        </div>
+        <div class="fa-deal-qual">${qual}</div>
+      </div>
+      ${isAssigned ? `
+        <div class="fa-assigned-pill">
+          <div class="fa-facilitator-avatar">${initials(facName)}</div>
+          <span>${escHtml(facName)}</span>
+        </div>
+      ` : ''}
+      <button class="btn btn-xs ${isAssigned ? '' : 'btn-blue'}" onclick="toggleFacilitatorPicker(${d.deal_number}, this)">
+        ${isAssigned ? 'Reassign' : 'Assign'}
+      </button>
+      <div class="fa-picker" id="fa-picker-${d.deal_number}"></div>
+    </div>`;
+}
+
+function toggleFacilitatorPicker(dealNumber, btn) {
+  // Close any other open pickers first
+  document.querySelectorAll('.fa-picker.open').forEach(p => {
+    if (p.id !== `fa-picker-${dealNumber}`) { p.classList.remove('open'); p.innerHTML = ''; }
+  });
+
+  const picker = document.getElementById(`fa-picker-${dealNumber}`);
+  if (!picker) return;
+
+  if (picker.classList.contains('open')) {
+    picker.classList.remove('open');
+    picker.innerHTML = '';
+    return;
+  }
+
+  if (!facilitatorPool.length) {
+    picker.innerHTML = `<div class="fa-empty" style="padding:14px">No facilitators found. Add one under Users &amp; roles.</div>`;
+    picker.classList.add('open');
+    return;
+  }
+
+  const currentDeal = facilitatorOverviewDeals.find(d => d.deal_number === dealNumber);
+  const currentFacId = currentDeal?.facilitator_id || null;
+
+  const optionsHtml = facilitatorPool.map(f => {
+    const name = [f.name, f.surname].filter(Boolean).join(' ') || '—';
+    const busy = f.deals_count > 0;
+    const isCurrent = f.facilitator_id === currentFacId;
+    return `
+      <div class="fa-picker-option${busy ? ' fa-muted' : ''}${isCurrent ? ' fa-current' : ''}"
+           onclick="assignFacilitator(${dealNumber}, '${f.facilitator_id}', this)">
+        <div class="fa-facilitator-avatar">${initials(name)}</div>
+        <div class="fa-picker-option-info">
+          <span class="fa-picker-option-name">${escHtml(name)}</span>
+          <span class="fa-picker-option-meta">${busy ? `${f.deals_count} deal${f.deals_count === 1 ? '' : 's'} already` : 'No deals yet'}</span>
+        </div>
+        ${isCurrent ? '<span class="fa-current-tag">Current</span>' : ''}
+      </div>`;
+  }).join('');
+
+  picker.innerHTML = `
+    <div class="fa-picker-inner">
+      <div class="fa-picker-label">Select a facilitator</div>
+      ${optionsHtml}
+      ${currentFacId ? `<div class="fa-picker-option fa-unassign-option" onclick="assignFacilitator(${dealNumber}, null, this)">Unassign facilitator</div>` : ''}
+    </div>`;
+  picker.classList.add('open');
+}
+
+async function assignFacilitator(dealNumber, facilitatorId, el) {
+  const picker = el.closest('.fa-picker');
+  if (picker) picker.innerHTML = `<div class="fa-loading" style="padding:14px">Saving…</div>`;
+
+  try {
+    const res = await fetch(`/api/deals/${dealNumber}/facilitator`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facilitator_id: facilitatorId }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    showFaMsg(data.message || 'Facilitator updated.', 'success');
+    await refreshFacilitatorAssignment();
+
+    // Refresh deals table in background if visible
+    if (document.querySelector('#all-deals table tbody')) refreshDealTable();
+  } catch (err) {
+    console.error('assignFacilitator:', err);
+    showFaMsg('Error: ' + err.message, 'error');
+    if (picker) picker.classList.remove('open');
+  }
+}
+
+/* Close any open picker when clicking outside a deal row */
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.fa-deal-row')) {
+    document.querySelectorAll('.fa-picker.open').forEach(p => {
+      p.classList.remove('open');
+      p.innerHTML = '';
+    });
+  }
+});
+
+function showFaMsg(text, type) {
+  const el = document.getElementById('deal-msg-facilitator');
+  if (!el) return;
+  el.textContent = text;
+  el.className = type === 'success' ? 'success-message' : 'error-message';
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+/* ════════════════════════════════════════════════════════
    UTILS
 ════════════════════════════════════════════════════════ */
 function initials(name) {
@@ -1590,3 +1776,6 @@ window.removePick = removePick;
 window.enterDealEditMode = enterDealEditMode;
 window.saveDealEdit = saveDealEdit;
 window.confirmRemoveDeal = confirmRemoveDeal;
+window.refreshFacilitatorAssignment = refreshFacilitatorAssignment;
+window.toggleFacilitatorPicker = toggleFacilitatorPicker;
+window.assignFacilitator = assignFacilitator;

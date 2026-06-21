@@ -57,6 +57,65 @@ router.get('/api/deals/next-number', ...guard, async (req, res) => {
 });
 
 /* ─────────────────────────────────────────
+   GET /api/deals/facilitator-overview
+   Lightweight list of every (non-archived) deal with its
+   current facilitator (if any), for the facilitator
+   assignment panel. Split into assigned/unassigned client-side.
+───────────────────────────────────────── */
+router.get('/api/deals/facilitator-overview', ...guard, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        d.deal_number,
+        d.sponsor,
+        q.title AS qualification_title,
+        d.facilitator_id,
+        uf.name    AS facilitator_name,
+        uf.surname AS facilitator_surname
+      FROM deals d
+      LEFT JOIN qualifications q  ON q.qualification_id = d.qualification_id
+      LEFT JOIN facilitators f    ON f.facilitator_id = d.facilitator_id
+      LEFT JOIN users uf          ON uf.user_id = f.facilitator_id
+      WHERE d.is_deleted = FALSE
+      ORDER BY d.deal_number DESC
+    `);
+    res.json({ success: true, deals: result.rows });
+  } catch (err) {
+    console.error('GET /api/deals/facilitator-overview:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch deal/facilitator overview' });
+  }
+});
+
+/* ─────────────────────────────────────────
+   GET /api/facilitators/assignable
+   Every facilitator with a count of how many (non-archived)
+   deals currently point at them. Used to mute/inform the
+   picker — facilitators are never blocked from taking on
+   another deal, since one facilitator can hold many deals.
+───────────────────────────────────────── */
+router.get('/api/facilitators/assignable', ...guard, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        u.user_id AS facilitator_id,
+        u.name,
+        u.surname,
+        u.email,
+        COUNT(d.deal_number) FILTER (WHERE d.is_deleted = FALSE)::int AS deals_count
+      FROM facilitators f
+      JOIN users u ON u.user_id = f.facilitator_id
+      LEFT JOIN deals d ON d.facilitator_id = f.facilitator_id
+      GROUP BY u.user_id, u.name, u.surname, u.email
+      ORDER BY deals_count ASC, u.surname, u.name
+    `);
+    res.json({ success: true, facilitators: result.rows });
+  } catch (err) {
+    console.error('GET /api/facilitators/assignable:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch facilitators' });
+  }
+});
+
+/* ─────────────────────────────────────────
    GET /api/deals/:number
    Single deal with linked learner details
 ───────────────────────────────────────── */
@@ -74,9 +133,14 @@ router.get('/api/deals/:number', ...guard, async (req, res) => {
         d.start_date,
         q.title       AS qualification_title,
         q.nqf_level,
-        q.qualification_id
+        q.qualification_id,
+        d.facilitator_id,
+        uf.name    AS facilitator_name,
+        uf.surname AS facilitator_surname
       FROM deals d
       LEFT JOIN qualifications q ON q.qualification_id = d.qualification_id
+      LEFT JOIN facilitators f   ON f.facilitator_id = d.facilitator_id
+      LEFT JOIN users uf         ON uf.user_id = f.facilitator_id
       WHERE d.deal_number = $1 AND d.is_deleted = FALSE
     `, [dealNumber]);
 
@@ -202,6 +266,58 @@ router.put('/api/deals/:number', ...guard, async (req, res) => {
 });
 
 /* ─────────────────────────────────────────
+   PUT /api/deals/:number/facilitator
+   Assign, reassign, or unassign the single facilitator on a
+   deal. A facilitator may hold many deals (no uniqueness
+   constraint on facilitator_id), but each deal points at only
+   one facilitator at a time — so this is a plain overwrite.
+   Body: { facilitator_id }  (null/omitted clears the assignment)
+───────────────────────────────────────── */
+router.put('/api/deals/:number/facilitator', ...guard, async (req, res) => {
+  const dealNumber = parseInt(req.params.number, 10);
+  if (isNaN(dealNumber)) return res.status(400).json({ success: false, message: 'Invalid deal number' });
+
+  const { facilitator_id } = req.body;
+
+  if (facilitator_id) {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(facilitator_id)) {
+      return res.status(400).json({ success: false, message: 'Invalid facilitator ID' });
+    }
+
+    // Confirm the ID actually belongs to a facilitator
+    const facCheck = await pool.query(
+      'SELECT facilitator_id FROM facilitators WHERE facilitator_id = $1',
+      [facilitator_id]
+    );
+    if (!facCheck.rows.length) {
+      return res.status(400).json({ success: false, message: 'Facilitator not found' });
+    }
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE deals SET facilitator_id = $1
+       WHERE deal_number = $2 AND is_deleted = FALSE
+       RETURNING deal_number`,
+      [facilitator_id || null, dealNumber]
+    );
+
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Deal not found' });
+
+    res.json({
+      success: true,
+      message: facilitator_id
+        ? `Facilitator assigned to deal ${dealNumber}`
+        : `Facilitator unassigned from deal ${dealNumber}`,
+    });
+  } catch (err) {
+    console.error('PUT /api/deals/:number/facilitator:', err);
+    res.status(500).json({ success: false, message: 'Failed to assign facilitator' });
+  }
+});
+
+/* ─────────────────────────────────────────
    DELETE /api/deals/:number
    Soft-deletes a deal (marks is_deleted = TRUE, sets deleted_at).
    The row is never physically removed — this preserves the deal
@@ -246,7 +362,8 @@ router.delete('/api/deals/:number', ...guard, async (req, res) => {
       [dealNumber]
     );
 
-    // Soft-delete the deal itself
+    // Soft-delete the deal itself (facilitator_id stays on the row for
+    // audit history — it's archived along with the rest of the deal)
     await client.query(
       `UPDATE deals SET is_deleted = TRUE, deleted_at = NOW() WHERE deal_number = $1`,
       [dealNumber]

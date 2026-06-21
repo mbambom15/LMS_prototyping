@@ -1,6 +1,5 @@
 // ── CONFIGURATION ──────────────────────────────────────────────
 const CONFIG = {
-    scheduledDays:    [1, 3],          // Tue=1, Thu=3  (Mon=0)
     venue: {
         lat: -25.82731638243808,
         lng:  28.2034515438192
@@ -9,11 +8,8 @@ const CONFIG = {
     lateThresholdMin: 7 * 60 + 30,    // 07:30 → late
     signInOpenMin:    7 * 60,          // 07:00 sign-in opens
     signOutOpenMin:   14 * 60 + 30,   // 14:30 sign-out opens
-    signOutCloseMin:  15 * 60,        // 15:00 sign-out closes
-    sessionName:      'Data Science 101'
+    signOutCloseMin:  15 * 60        // 15:00 sign-out closes
 };
-
-const DAYS_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 // ── STATE ──────────────────────────────────────────────────────
 let permissionGranted = false;
@@ -24,7 +20,6 @@ let signOutTimeObj    = null;
 let isLateFlag        = false;
 let currentUser       = null; // set after login/session check
 
-// ── MOCK HISTORY (replace with API call once backend ready) ────
 let attendanceLog = [];
 
 // ── HELPERS ───────────────────────────────────────────────────
@@ -78,6 +73,7 @@ async function fetchCurrentUser() {
             currentUser = data;
             setUserDisplay(`${data.name} ${data.surname}`);
             loadAttendanceHistory();
+            loadTodayStatus();
         } else {
             setUserDisplay('Learner');
         }
@@ -86,16 +82,33 @@ async function fetchCurrentUser() {
     }
 }
 
-// ── SCHEDULED DAYS CHIPS ─────────────────────────────────────
-function renderScheduledDays() {
-    const todayDow = (new Date().getDay() + 6) % 7; // Mon=0
-    const container = document.getElementById('sched-days-display');
-    container.innerHTML = DAYS_NAMES.map((day, idx) => {
-        const active  = CONFIG.scheduledDays.includes(idx);
-        const isToday = (idx === todayDow);
-        const outline = (isToday && active) ? ' style="outline:2px solid #10b981;outline-offset:2px;"' : '';
-        return `<span class="day-chip ${active ? '' : 'off'}"${outline}>${day.slice(0,3)}${isToday ? ' ·today' : ''}</span>`;
-    }).join('');
+// Restore today's sign-in/out state on page load so buttons reflect
+// reality after a refresh, instead of resetting to "not signed in".
+async function loadTodayStatus() {
+    try {
+        const res = await fetch('/api/attendance/today-status');
+        if (!res.ok) return;
+        const data = await res.json();
+        signedIn  = !!data.signedIn;
+        signedOut = !!data.signedOut;
+        if (data.checkIn) {
+            signInTimeObj = new Date(data.checkIn);
+            const recordedDiv = document.getElementById('signin-recorded');
+            recordedDiv.style.display = 'block';
+            recordedDiv.innerHTML = `✓ ${formatTime(signInTimeObj)} · recorded`;
+            document.getElementById('tw-signin').style.borderColor = '#10b981';
+        }
+        if (data.checkOut) {
+            signOutTimeObj = new Date(data.checkOut);
+            const outDiv = document.getElementById('signout-recorded');
+            outDiv.style.display = 'block';
+            outDiv.innerHTML = `✓ ${formatTime(signOutTimeObj)} · recorded`;
+            document.getElementById('tw-signout').style.borderColor = '#10b981';
+        }
+        updateButtonsUI();
+    } catch {
+        // Non-fatal — buttons just default to "not signed in" state
+    }
 }
 
 // ── BUTTON STATE ──────────────────────────────────────────────
@@ -117,7 +130,6 @@ function updateButtonsUI() {
     } else if (signedIn) {
         signinBtn.disabled  = true;
         signoutBtn.disabled = !signOutWindowNow;
-        // If sign-out window closed without sign-out, disable permanently
         if (nowMin > CONFIG.signOutCloseMin) signoutBtn.disabled = true;
     } else {
         signinBtn.disabled  = !signInOpen;   // stays open all day — late alert handles it
@@ -139,11 +151,10 @@ function hideLateBanner() {
 
 // ── STATS ─────────────────────────────────────────────────────
 function updateStats() {
-    const sched   = attendanceLog.filter(e => e.scheduled);
-    const present = sched.filter(e => e.status === 'present').length;
-    const late    = sched.filter(e => e.status === 'late').length;
-    const absent  = sched.filter(e => e.status === 'absent').length;
-    const total   = sched.length;
+    const present = attendanceLog.filter(e => e.status === 'present').length;
+    const late    = attendanceLog.filter(e => e.status === 'late').length;
+    const absent  = attendanceLog.filter(e => e.status === 'absent').length;
+    const total   = attendanceLog.length;
     const rate    = total ? Math.round(((present + late) / total) * 100) : 0;
     document.getElementById('stat-present').textContent = present;
     document.getElementById('stat-absent').textContent  = absent;
@@ -155,7 +166,7 @@ function updateStats() {
 function renderLog() {
     const tbody = document.getElementById('log-tbody');
     if (!attendanceLog.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="log-empty">No attendance records yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="log-empty">No attendance records yet.</td></tr>`;
         return;
     }
     tbody.innerHTML = attendanceLog.map(e => {
@@ -164,9 +175,8 @@ function renderLog() {
         const loc = (e.lat && e.lng)
             ? `<span class="loc-chip">${e.lat}, ${e.lng}</span>`
             : '<span style="color:#334155">—</span>';
-        return `<tr class="${e.scheduled ? '' : 'unscheduled-row'}">
+        return `<tr>
             <td>${e.date}</td>
-            <td>${e.session}</td>
             <td>${e.signIn  || '—'}</td>
             <td>${e.signOut || '—'}</td>
             <td>${loc}</td>
@@ -182,11 +192,10 @@ async function loadAttendanceHistory() {
         if (res.ok) {
             const data = await res.json();
             attendanceLog = data.records || [];
-            renderLog();
-            updateStats();
         }
     } catch {
-        // Keep mock data if API unavailable
+        // Leave attendanceLog empty if API unavailable
+    } finally {
         renderLog();
         updateStats();
     }
@@ -211,7 +220,6 @@ function doSignIn() {
         signedIn = true;
         btn.textContent = '↓ Sign in';
 
-        // ── LATE ALERT (soft warning, not a block) ──
         if (isLateFlag) {
             const lateMsg = nowMin > CONFIG.signInOpenMin
                 ? `You signed in at <strong>${formatTime(now)}</strong> — this will be recorded as <strong>Late</strong>.`
@@ -219,20 +227,17 @@ function doSignIn() {
             showLateBanner(lateMsg);
         }
 
-        // ── OFF-SITE WARNING ──
         if (!onSite) {
             const distM = Math.round(dist * 1000);
             showLateBanner(`⚠ You appear to be <strong>${distM}m from the venue</strong> (max 50m). Your attendance will still be recorded but marked as unverified.`);
         }
 
-        // ── UPDATE SIGN-IN CARD ──
         const recordedDiv = document.getElementById('signin-recorded');
         recordedDiv.style.display = 'block';
         recordedDiv.innerHTML = `✓ ${formatTime(now)} · ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}<br>${onSite ? '✅ On-site verified' : `⚠ ${Math.round(dist*1000)}m from venue`}${isLateFlag ? ' · <span style="color:#f59e0b">Late</span>' : ''}`;
         document.getElementById('tw-signin').style.borderColor = '#10b981';
 
-        // ── POST TO BACKEND ──
-        postSignIn(position.coords, now, onSite, isLateFlag);
+        postSignIn(position.coords, now);
 
         updateButtonsUI();
     }, (err) => {
@@ -242,7 +247,7 @@ function doSignIn() {
     }, { enableHighAccuracy: true, timeout: 12000 });
 }
 
-async function postSignIn(coords, timestamp, geoVerified, isLate) {
+async function postSignIn(coords, timestamp) {
     try {
         const res = await fetch('/api/attendance/signin', {
             method: 'POST',
@@ -250,22 +255,22 @@ async function postSignIn(coords, timestamp, geoVerified, isLate) {
             body: JSON.stringify({
                 geo_latitude:  coords.latitude,
                 geo_longitude: coords.longitude,
-                geo_verified:  geoVerified,
-                check_in_time: timestamp.toISOString(),
-                is_late:       isLate,
-                session_name:  CONFIG.sessionName
+                check_in_time: timestamp.toISOString()
             })
         });
         if (!res.ok) {
             const msg = await res.text();
             throw new Error(`Sign‑in failed (${res.status}): ${msg}`);
         }
+        // Server is the source of truth for status/geo — refresh history
+        // so the log/stats reflect what was actually persisted.
+        loadAttendanceHistory();
     } catch (e) {
         console.error(e);
-        //revert UI changes and show an alert
         signedIn = false;
         document.getElementById('signin-btn').disabled = false;
         alert('Attendance sign‑in failed. Please try again. ' + e.message);
+        updateButtonsUI();
     }
 }
 
@@ -281,24 +286,7 @@ function doSignOut() {
         signOutTimeObj     = now;
         signedOut          = true;
 
-        const signInStr    = formatTime(signInTimeObj);
         const signOutStr   = formatTime(now);
-        const statusFinal  = isLateFlag ? 'late' : 'present';
-        const dateStr      = now.toLocaleDateString('en-ZA', { day:'numeric', month:'short', year:'numeric' });
-
-        attendanceLog.unshift({
-            date:      dateStr,
-            session:   CONFIG.sessionName,
-            signIn:    signInStr,
-            signOut:   signOutStr,
-            lat:       pos.coords.latitude.toFixed(4),
-            lng:       pos.coords.longitude.toFixed(4),
-            status:    statusFinal,
-            scheduled: true
-        });
-
-        renderLog();
-        updateStats();
 
         const outDiv = document.getElementById('signout-recorded');
         outDiv.style.display = 'block';
@@ -325,20 +313,20 @@ async function postSignOut(coords, timestamp) {
             body: JSON.stringify({
                 geo_latitude:   coords.latitude,
                 geo_longitude:  coords.longitude,
-                check_out_time: timestamp.toISOString(),
-                session_name:   CONFIG.sessionName
+                check_out_time: timestamp.toISOString()
             })
         });
         if (!res.ok) {
             const msg = await res.text();
-            throw new Error(`Sign‑in failed (${res.status}): ${msg}`);
+            throw new Error(`Sign‑out failed (${res.status}): ${msg}`);
         }
+        loadAttendanceHistory();
     } catch (e) {
-       console.error(e);
-        // 👇 revert UI changes and show an alert
-        signedIn = false;
-        document.getElementById('signin-btn').disabled = false;
-        alert('Attendance sign‑in failed. Please try again. ' + e.message);
+        console.error(e);
+        signedOut = false;
+        document.getElementById('signout-btn').disabled = false;
+        alert('Attendance sign‑out failed. Please try again. ' + e.message);
+        updateButtonsUI();
     }
 }
 
@@ -404,7 +392,6 @@ function checkInitialPermissions() {
 // ── INIT ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
     initClock();
-    renderScheduledDays();
     renderLog();
     updateStats();
     checkInitialPermissions();

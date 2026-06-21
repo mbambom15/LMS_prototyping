@@ -4,6 +4,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const qualificationsRoutes = require('./routes/qualifications');
 const dealsRoutes = require('./routes/deals');
+const dashboardRoutes = require('./routes/dashboard');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -32,6 +33,7 @@ app.use(authRoutes);
 app.use(attendanceRoutes);
 app.use(qualificationsRoutes);
 app.use(dealsRoutes);
+app.use(dashboardRoutes);
 
 // Protect /admin
 app.use('/admin', isAuthenticated, isRole('admin'), express.static('public/admin'));

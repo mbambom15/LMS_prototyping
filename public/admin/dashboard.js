@@ -4,7 +4,128 @@ function showSection(name, el) {
   document.getElementById('section-' + name).classList.add('visible');
   document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
   if (el) el.classList.add('active');
+  if (name === 'dashboard') loadDashboardData();
 }
+
+/* ══════════════════════════════════════════════════════════
+   DASHBOARD OVERVIEW — live KPI stats + recent activity
+   Backed by GET /api/dashboard/stats and /api/dashboard/activity
+   (admin_dashboard_stats / admin_recent_activity SQL views).
+══════════════════════════════════════════════════════════ */
+const ACTIVITY_COLORS = {
+  submission: '#185fa5',
+  graded: '#185fa5',
+  risk: '#e24b4a',
+  material: '#ba7517',
+  feedback: '#1d9e75',
+};
+
+/** Load both the KPI cards and the activity feed together */
+async function loadDashboardData() {
+  await Promise.all([loadDashboardStats(), loadRecentActivity()]);
+}
+
+/** Fetch /api/dashboard/stats and populate the four stat cards */
+async function loadDashboardStats() {
+  try {
+    const res = await fetch('/api/dashboard/stats');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    renderDashboardStats(data.stats);
+  } catch (err) {
+    console.error('loadDashboardStats:', err);
+    ['total-users', 'active-learners', 'qualifications', 'completion-rate'].forEach(id => {
+      const valEl = document.getElementById(`stat-${id}`);
+      const subEl = document.getElementById(`stat-${id}-sub`);
+      if (valEl) valEl.textContent = '—';
+      if (subEl) { subEl.textContent = 'Failed to load'; subEl.classList.remove('up'); }
+    });
+  }
+}
+
+function renderDashboardStats(s) {
+  const newUsers = Number(s.new_users_this_month) || 0;
+  setStatValue('stat-total-users', s.total_users ?? 0);
+  setStatSub('stat-total-users-sub',
+    `${newUsers > 0 ? '▲ ' : ''}${newUsers} this month`, newUsers > 0);
+
+  const programmes = Number(s.active_programmes) || 0;
+  setStatValue('stat-active-learners', s.active_learners ?? 0);
+  setStatSub('stat-active-learners-sub',
+    `Across ${programmes} programme${programmes === 1 ? '' : 's'}`);
+
+  setStatValue('stat-qualifications', s.total_qualifications ?? 0);
+  setStatSub('stat-qualifications-sub',
+    `${s.active_qualifications ?? 0} active, ${s.draft_qualifications ?? 0} draft`);
+
+  const rate = s.completion_rate_pct != null ? `${s.completion_rate_pct}%` : '—';
+  setStatValue('stat-completion-rate', rate);
+  setStatSub('stat-completion-rate-sub',
+    `${s.completed_enrolments ?? 0} of ${s.total_enrolments ?? 0} enrolments completed`);
+}
+
+function setStatValue(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function setStatSub(id, text, isUp) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('up', !!isUp);
+}
+
+/** Fetch /api/dashboard/activity and render the recent activity feed */
+async function loadRecentActivity() {
+  const list = document.getElementById('activity-list');
+  if (!list) return;
+
+  try {
+    const res = await fetch('/api/dashboard/activity?limit=10');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    if (!data.activity.length) {
+      list.innerHTML = `<div class="activity-item"><div><div class="activity-text">No recent activity yet.</div></div></div>`;
+      return;
+    }
+
+    list.innerHTML = data.activity.map(a => `
+      <div class="activity-item">
+        <div class="activity-dot" style="background:${ACTIVITY_COLORS[a.activity_type] || '#5f5e5a'}"></div>
+        <div>
+          <div class="activity-text">${escHtml(a.description)}</div>
+          <div class="activity-time">${timeAgo(a.occurred_at)}</div>
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    console.error('loadRecentActivity:', err);
+    list.innerHTML = `<div class="activity-item"><div><div class="activity-text" style="color:var(--color-red)">Failed to load recent activity.</div></div></div>`;
+  }
+}
+
+/** Turn an ISO timestamp into "10 min ago" / "2 hrs ago" / "Yesterday" etc. */
+function timeAgo(isoString) {
+  if (!isoString) return '';
+  const then = new Date(isoString).getTime();
+  if (Number.isNaN(then)) return '';
+  const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr${diffHr === 1 ? '' : 's'} ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 7) return `${diffDay} days ago`;
+  return new Date(isoString).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/* Load the dashboard the moment the page is ready, since the
+   Dashboard tab is visible by default before any sidebar click. */
+document.addEventListener('DOMContentLoaded', loadDashboardData);
 
 /* ── CRUD toggle panels ── */
 function toggleArea(id) {
@@ -805,10 +926,6 @@ async function populateQualSelects() {
     console.warn('populateQualSelects:', err);
   }
 }
-
-/* ════════════════════════════════════════════════════════
-   OVERRIDE toggleArea to hook qual-specific actions
-════════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════════════════
    MESSAGE helpers

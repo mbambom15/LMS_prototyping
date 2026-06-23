@@ -1646,29 +1646,27 @@ function renderFaDealRow(d, isAssigned) {
       <button class="btn btn-xs ${isAssigned ? '' : 'btn-blue'}" onclick="toggleFacilitatorPicker(${d.deal_number}, this)">
         ${isAssigned ? 'Reassign' : 'Assign'}
       </button>
-      <div class="fa-picker" id="fa-picker-${d.deal_number}"></div>
     </div>`;
 }
 
-function toggleFacilitatorPicker(dealNumber, btn) {
-  // Close any other open pickers first
-  document.querySelectorAll('.fa-picker.open').forEach(p => {
-    if (p.id !== `fa-picker-${dealNumber}`) { p.classList.remove('open'); p.innerHTML = ''; }
-  });
+/* ── Floating picker state ──
+   Only one picker is ever open at a time. It lives at
+   #fa-floating-picker, a direct child of <body> (see admin.html,
+   right after the deal drawer markup) — deliberately NOT nested
+   inside .fa-list or .panel, since .panel has overflow:hidden and
+   .fa-list has overflow-y:auto, both of which would clip an
+   absolutely-positioned dropdown anchored to a row inside them.
+   Using position:fixed + a body-level element sidesteps that
+   clipping entirely, regardless of how deep the row is nested. */
+let faOpenDealNumber = null;
 
-  const picker = document.getElementById(`fa-picker-${dealNumber}`);
-  if (!picker) return;
+function getFaPickerEl() {
+  return document.getElementById('fa-floating-picker');
+}
 
-  if (picker.classList.contains('open')) {
-    picker.classList.remove('open');
-    picker.innerHTML = '';
-    return;
-  }
-
+function buildFacilitatorPickerHtml(dealNumber) {
   if (!facilitatorPool.length) {
-    picker.innerHTML = `<div class="fa-empty" style="padding:14px">No facilitators found. Add one under Users &amp; roles.</div>`;
-    picker.classList.add('open');
-    return;
+    return `<div class="fa-empty" style="padding:14px">No facilitators found. Add one under Users &amp; roles.</div>`;
   }
 
   const currentDeal = facilitatorOverviewDeals.find(d => d.deal_number === dealNumber);
@@ -1690,17 +1688,66 @@ function toggleFacilitatorPicker(dealNumber, btn) {
       </div>`;
   }).join('');
 
-  picker.innerHTML = `
+  return `
     <div class="fa-picker-inner">
       <div class="fa-picker-label">Select a facilitator</div>
       ${optionsHtml}
       ${currentFacId ? `<div class="fa-picker-option fa-unassign-option" onclick="assignFacilitator(${dealNumber}, null, this)">Unassign facilitator</div>` : ''}
     </div>`;
+}
+
+function toggleFacilitatorPicker(dealNumber, btn) {
+  const picker = getFaPickerEl();
+  if (!picker) return;
+
+  // Clicking the same row's trigger again closes it
+  if (faOpenDealNumber === dealNumber && picker.classList.contains('open')) {
+    closeFacilitatorPicker();
+    return;
+  }
+
+  picker.innerHTML = buildFacilitatorPickerHtml(dealNumber);
+  faOpenDealNumber = dealNumber;
   picker.classList.add('open');
+  positionFaPicker(picker, btn);
+}
+
+/** Position the floating picker next to its trigger button using
+ *  viewport-relative coordinates (position:fixed), flipping above
+ *  the button or clamping horizontally if it would overflow. */
+function positionFaPicker(picker, btn) {
+  const rect = btn.getBoundingClientRect();
+  const margin = 8;
+  const pickerWidth = picker.offsetWidth || 260;
+  const pickerHeight = picker.offsetHeight || 200;
+
+  let left = rect.right - pickerWidth;
+  if (left < margin) left = margin;
+  if (left + pickerWidth > window.innerWidth - margin) {
+    left = window.innerWidth - pickerWidth - margin;
+  }
+
+  let top = rect.bottom + 4;
+  if (top + pickerHeight > window.innerHeight - margin) {
+    const above = rect.top - pickerHeight - 4;
+    top = above > margin ? above : Math.max(margin, window.innerHeight - pickerHeight - margin);
+  }
+
+  picker.style.top = `${top}px`;
+  picker.style.left = `${left}px`;
+}
+
+function closeFacilitatorPicker() {
+  const picker = getFaPickerEl();
+  if (picker) {
+    picker.classList.remove('open');
+    picker.innerHTML = '';
+  }
+  faOpenDealNumber = null;
 }
 
 async function assignFacilitator(dealNumber, facilitatorId, el) {
-  const picker = el.closest('.fa-picker');
+  const picker = getFaPickerEl();
   if (picker) picker.innerHTML = `<div class="fa-loading" style="padding:14px">Saving…</div>`;
 
   try {
@@ -1713,6 +1760,7 @@ async function assignFacilitator(dealNumber, facilitatorId, el) {
     if (!data.success) throw new Error(data.message);
 
     showFaMsg(data.message || 'Facilitator updated.', 'success');
+    closeFacilitatorPicker();
     await refreshFacilitatorAssignment();
 
     // Refresh deals table in background if visible
@@ -1720,19 +1768,19 @@ async function assignFacilitator(dealNumber, facilitatorId, el) {
   } catch (err) {
     console.error('assignFacilitator:', err);
     showFaMsg('Error: ' + err.message, 'error');
-    if (picker) picker.classList.remove('open');
+    closeFacilitatorPicker();
   }
 }
 
-/* Close any open picker when clicking outside a deal row */
+/* Close the floating picker on outside click, or on scroll/resize
+   anywhere (capture:true catches scroll on nested containers like
+   .fa-list and main, which don't bubble a normal 'scroll' event). */
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('.fa-deal-row')) {
-    document.querySelectorAll('.fa-picker.open').forEach(p => {
-      p.classList.remove('open');
-      p.innerHTML = '';
-    });
-  }
+  if (e.target.closest('#fa-floating-picker') || e.target.closest('.fa-deal-row')) return;
+  closeFacilitatorPicker();
 });
+window.addEventListener('scroll', () => closeFacilitatorPicker(), true);
+window.addEventListener('resize', () => closeFacilitatorPicker());
 
 function showFaMsg(text, type) {
   const el = document.getElementById('deal-msg-facilitator');
@@ -1779,3 +1827,4 @@ window.confirmRemoveDeal = confirmRemoveDeal;
 window.refreshFacilitatorAssignment = refreshFacilitatorAssignment;
 window.toggleFacilitatorPicker = toggleFacilitatorPicker;
 window.assignFacilitator = assignFacilitator;
+window.closeFacilitatorPicker = closeFacilitatorPicker;

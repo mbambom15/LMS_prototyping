@@ -625,3 +625,252 @@
 .ll-picker-list::-webkit-scrollbar { width: 5px; }
 .ll-picker-list::-webkit-scrollbar-track { background: var(--bg-secondary); }
 .ll-picker-list::-webkit-scrollbar-thumb { background: #c5d2e8; border-radius: 3px; }
+
+/* ══════════════════════════════════════════════════════════
+   facilitator-assignment.css  — Nkanyezi LMS  (append to dashboard.css)
+   Two-column "Assign facilitators" panel under Deal management,
+   plus the floating facilitator picker dropdown.
+══════════════════════════════════════════════════════════ */
+
+.fa-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 760px) {
+  .fa-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fa-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding: 0 2px 8px;
+  border-bottom: 0.5px solid var(--border-light);
+  margin-bottom: 10px;
+}
+
+.fa-count-badge {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 10px;
+}
+
+.fa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 2px 2px 2px 0;
+}
+
+.fa-deal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+
+.fa-deal-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.fa-deal-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fa-deal-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--blue);
+  flex-shrink: 0;
+}
+
+.fa-deal-sponsor {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fa-deal-qual {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fa-assigned-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  padding: 3px 10px 3px 3px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  max-width: 160px;
+}
+
+.fa-assigned-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fa-facilitator-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fa-empty,
+.fa-loading,
+.fa-error {
+  padding: 16px 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.fa-error {
+  color: var(--red);
+}
+
+/* ── Floating picker ──
+   This is appended once to <body> (id="fa-floating-picker", see
+   admin.html right after the deal drawer markup) and positioned
+   with JS using position:fixed, computed from the trigger button's
+   getBoundingClientRect() — see positionFaPicker() in dashboard.js.
+
+   This is deliberate: the picker is NOT nested inside .fa-list or
+   .panel. .panel has overflow:hidden and .fa-list has
+   overflow-y:auto — either one will silently clip an absolutely
+   positioned dropdown anchored to a row inside it. A body-level
+   element with position:fixed escapes that clipping entirely,
+   regardless of how deep the row sits in scrollable containers. */
+.fa-picker {
+  display: none;
+  position: fixed;
+  width: min(260px, calc(100vw - 16px));
+  background: var(--bg-primary);
+  border: 0.5px solid var(--border-mid);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  z-index: 300;
+}
+
+.fa-picker.open {
+  display: block;
+}
+
+.fa-picker-inner {
+  padding: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.fa-picker-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding: 4px 6px 6px;
+}
+
+.fa-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.fa-picker-option:hover {
+  background: var(--bg-tertiary);
+}
+
+.fa-picker-option.fa-muted {
+  opacity: 0.45;
+}
+
+.fa-picker-option.fa-muted:hover {
+  opacity: 0.8;
+}
+
+.fa-picker-option.fa-current {
+  background: var(--bg-info);
+}
+
+.fa-picker-option-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fa-picker-option-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fa-picker-option-meta {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.fa-current-tag {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--bg-info);
+  padding: 2px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.fa-unassign-option {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--border-light);
+  color: var(--red);
+  font-weight: 500;
+  justify-content: center;
+}

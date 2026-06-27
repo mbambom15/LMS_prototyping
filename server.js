@@ -6,9 +6,10 @@ const qualificationsRoutes = require('./routes/qualifications');
 const dealsRoutes = require('./routes/deals');
 const dashboardRoutes = require('./routes/dashboard');
 require('dotenv').config();
+require('./jobs/scheduler');
 
 const authRoutes = require('./routes/auth');
-const attendanceRoutes = require('./routes/attendance'); // sign-in, sign-out, history, /api/me
+const attendanceRoutes = require('./routes/attendance');
 const { isAuthenticated, isRole } = require('./middleware/auth');
 const pool = require('./db/pool');
 
@@ -47,7 +48,7 @@ app.get('/', (req, res) => res.redirect('/login'));
 app.post('/api/create-user', isAuthenticated, isRole('admin'), async (req, res) => {
     const client = await pool.connect();
     try {
-        const { first_name, last_name, email, password, id_number, phone, gender, role, status, qualification } = req.body;
+        const { first_name, last_name, email, password, id_number, phone, gender, role, status, qualification, schedule_day_1, schedule_day_2 } = req.body;
 
         if (!first_name || !last_name || !email || !password || !role) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -80,6 +81,24 @@ app.post('/api/create-user', isAuthenticated, isRole('admin'), async (req, res) 
             );
         }
 
+        // Attendance schedule — learners only. day_1 is required on the
+        // client, but guard server-side too in case of a direct API call.
+        if (role === 'learner') {
+            const day1 = schedule_day_1 !== undefined && schedule_day_1 !== '' ? parseInt(schedule_day_1, 10) : null;
+            const day2 = schedule_day_2 !== undefined && schedule_day_2 !== '' ? parseInt(schedule_day_2, 10) : null;
+
+            if (day1 === null || Number.isNaN(day1)) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ success: false, message: 'Attendance day 1 is required for learners' });
+            }
+
+            await client.query(
+                `INSERT INTO attendance_schedules (learner_id, day_of_week_1, day_of_week_2)
+                 VALUES ($1, $2, $3)`,
+                [newUserId, day1, Number.isNaN(day2) ? null : day2]
+            );
+        }
+
         await client.query('COMMIT');
         res.json({ success: true, message: 'User created successfully', userId: newUserId });
     } catch (err) {
@@ -91,7 +110,8 @@ app.post('/api/create-user', isAuthenticated, isRole('admin'), async (req, res) 
         client.release();
     }
 });
-// ── GET /api/users  (admin: read all users) ──────────────────────
+
+// ── GET /api/users  (admin: read all users — excludes soft-deleted) ──
 app.get('/api/users', isAuthenticated, isRole('admin'), async (req, res) => {
     try {
         const result = await pool.query(
@@ -112,6 +132,7 @@ app.get('/api/users', isAuthenticated, isRole('admin'), async (req, res) => {
              LEFT JOIN learners l   ON l.learner_id = u.user_id
              LEFT JOIN enrolments e ON e.learner_id = l.learner_id
              LEFT JOIN qualifications q ON q.qualification_id = e.qualification_id
+             WHERE u.is_deleted = FALSE
              ORDER BY u.created_at DESC`
         );
         res.json({ success: true, users: result.rows });
@@ -202,7 +223,7 @@ app.put('/api/users/:id', isAuthenticated, isRole('admin'), async (req, res) => 
     }
 });
 
-// ── DELETE /api/users/:id  (admin: soft-archive then hard-delete) ──
+// ── DELETE /api/users/:id  (admin: soft delete — preserves audit trail) ──
 app.delete('/api/users/:id', isAuthenticated, isRole('admin'), async (req, res) => {
     const client = await pool.connect();
     try {
@@ -220,25 +241,33 @@ app.delete('/api/users/:id', isAuthenticated, isRole('admin'), async (req, res) 
 
         await client.query('BEGIN');
 
-        // Soft-archive: mark as terminated before cascade delete
-        // (attendance_records, feedback etc. keep their data via SET NULL / CASCADE)
-        await client.query(
-            `UPDATE users SET status = 'terminated', updated_at = NOW() WHERE user_id = $1`,
+        // Soft delete only — status flips to terminated and is_deleted/deleted_at
+        // are set, but the row (and everything referencing it: enrolments,
+        // attendance_records, assessment_submissions, learner_risk_flags) is kept
+        // for SETA audit purposes. Nothing is ever hard-deleted from users.
+        const result = await client.query(
+            `UPDATE users
+             SET status = 'terminated', is_deleted = TRUE, deleted_at = NOW(), updated_at = NOW()
+             WHERE user_id = $1 AND is_deleted = FALSE
+             RETURNING user_id`,
             [id]
         );
 
-        // Hard delete — cascades through learners → enrolments, attendance_records, etc.
-        const del = await client.query(
-            `DELETE FROM users WHERE user_id = $1 RETURNING user_id`, [id]
-        );
-
-        if (!del.rows.length) {
+        if (!result.rows.length) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ success: false, message: 'User not found' });
+            return res.status(404).json({ success: false, message: 'User not found or already removed' });
         }
 
+        // Mirror status onto learners.status so existing role-aware queries
+        // (e.g. admin_dashboard_stats active_learners) stay correct without
+        // needing to know about is_deleted on the users table.
+        await client.query(
+            `UPDATE learners SET status = 'terminated' WHERE learner_id = $1`,
+            [id]
+        );
+
         await client.query('COMMIT');
-        res.json({ success: true, message: 'User removed successfully' });
+        res.json({ success: true, message: 'User removed (archived for audit — not permanently deleted)' });
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('DELETE /api/users/:id error:', err);

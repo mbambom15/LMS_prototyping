@@ -49,7 +49,6 @@
         #add-user.visible .pw-hint {
             display: flex;
         }
-
     </style>
 </head>
 
@@ -206,6 +205,35 @@
                                     </select>
                                 </div>
                                 <div class="form-group"></div>
+                            </div>
+                            <div class="form-row" id="schedule-row" style="display:none">
+                                <div class="form-group">
+                                    <label class="form-label">Attendance day 1 <span
+                                            style="color:var(--color-red)">*</span></label>
+                                    <select id="schedule_day_1" name="schedule_day_1">
+                                        <option value="">— Select day —</option>
+                                        <option value="0">Monday</option>
+                                        <option value="1">Tuesday</option>
+                                        <option value="2">Wednesday</option>
+                                        <option value="3">Thursday</option>
+                                        <option value="4">Friday</option>
+                                        <option value="5">Saturday</option>
+                                        <option value="6">Sunday</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Attendance day 2</label>
+                                    <select id="schedule_day_2" name="schedule_day_2">
+                                        <option value="">— None —</option>
+                                        <option value="0">Monday</option>
+                                        <option value="1">Tuesday</option>
+                                        <option value="2">Wednesday</option>
+                                        <option value="3">Thursday</option>
+                                        <option value="4">Friday</option>
+                                        <option value="5">Saturday</option>
+                                        <option value="6">Sunday</option>
+                                    </select>
+                                </div>
                             </div>
                             <button type="submit" class="btn btn-blue">Save user</button>
                         </form>
@@ -488,7 +516,8 @@
                             deal</button>
                         <button class="btn" onclick="toggleArea('all-deals'); refreshDealTable()">View all
                             deals</button>
-                        <button class="btn" onclick="toggleArea('assign-facilitators'); refreshFacilitatorAssignment()">Assign
+                        <button class="btn"
+                            onclick="toggleArea('assign-facilitators'); refreshFacilitatorAssignment()">Assign
                             facilitators</button>
                     </div>
 
@@ -636,11 +665,7 @@
                         <div style="margin-bottom:14px">
                             <div style="font-size:14px;font-weight:600;color:var(--text-primary)">Facilitator
                                 assignment</div>
-                            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">
-                                Each deal has exactly one facilitator. A facilitator can be assigned to many deals —
-                                facilitators already carrying deals are shown muted in the picker below, but you can
-                                still pick them.
-                            </div>
+
                         </div>
 
                         <div class="fa-columns">
@@ -691,14 +716,7 @@
             </div>
 
 
-            <!-- ═══════════════════════════════════════════════════════════
-     FACILITATOR PICKER — single floating, body-level element.
-     Deliberately NOT nested inside .fa-list / .panel (both of which
-     clip overflow). Positioned via JS with position:fixed, computed
-     from whichever Assign/Reassign button triggered it — that's what
-     lets it escape the clipping of its scrollable/overflow:hidden
-     ancestors entirely. See toggleFacilitatorPicker() in dashboard.js.
-═══════════════════════════════════════════════════════════ -->
+
             <div id="fa-floating-picker" class="fa-picker"></div>
 
 

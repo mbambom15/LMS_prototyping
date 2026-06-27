@@ -484,6 +484,17 @@ document.addEventListener('DOMContentLoaded', function () {
   const addUserForm = document.getElementById('addUserForm');
   if (!addUserForm) return;
 
+  // Show schedule fields only when role = learner
+  const roleSelect = document.getElementById('role');
+  const scheduleRow = document.getElementById('schedule-row');
+  function syncScheduleVisibility() {
+    if (!roleSelect || !scheduleRow) return;
+    scheduleRow.style.display = roleSelect.value === 'learner' ? 'flex' : 'none';
+  }
+  if (roleSelect) {
+    roleSelect.addEventListener('change', syncScheduleVisibility);
+    syncScheduleVisibility(); // run once on load — role defaults to "learner"
+  }
   addUserForm.addEventListener('submit', async function (e) {
     e.preventDefault();
     const first_name = document.getElementById('first_name').value.trim();
@@ -496,9 +507,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const role = document.getElementById('role').value;
     const status = document.getElementById('status').value;
     const qualification = document.getElementById('qualification').value;
+    const schedule_day_1 = document.getElementById('schedule_day_1')?.value || '';
+    const schedule_day_2 = document.getElementById('schedule_day_2')?.value || '';
 
     if (!first_name || !last_name || !email || !password) {
       showMessage('Please fill all required fields.', 'error');
+      return;
+    }
+
+    if (role === 'learner' && schedule_day_1 === '') {
+      showMessage('Please select at least one attendance day for this learner.', 'error');
       return;
     }
 
@@ -511,7 +529,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const response = await fetch('/api/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ first_name, last_name, email, password, id_number, phone, gender, role, status, qualification })
+        body: JSON.stringify({ first_name, last_name, email, password, id_number, phone, gender, role, status, qualification, schedule_day_1, schedule_day_2 })
       });
       const result = await response.json();
       if (result.success) {

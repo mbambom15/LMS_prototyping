@@ -7,7 +7,7 @@ const { isAuthenticated, isRole } = require('../middleware/auth');
 const VENUE_LAT          = -25.82731638243808;
 const VENUE_LNG          =  28.2034515438192;
 const MAX_GEO_KM         = 0.05;            // 50 m radius
-const LATE_THRESHOLD_MIN = 7 * 60 + 30;     // 07:30 → late
+const LATE_THRESHOLD_MIN = 8 * 60 + 30;     // 08:30 → late
 const SIGNIN_OPEN_MIN    = 7 * 60;          // 07:00
 const SIGNOUT_OPEN_MIN   = 14 * 60 + 30;    // 14:30
 const SIGNOUT_CLOSE_MIN  = 15 * 60;         // 15:00
@@ -147,47 +147,58 @@ router.post('/api/attendance/signin', isAuthenticated, isRole('learner'), async 
         await client.query('BEGIN');
 
         const existing = await client.query(
-            `SELECT id, check_in_time FROM attendance_records WHERE learner_id = $1 AND attendance_date = $2`,
+            `SELECT id, check_in_time FROM attendance_records WHERE learner_id = $1 AND attendance_date = $2 FOR UPDATE`,
             [learnerId, today]
         );
+
+        let savedRow;
 
         if (existing.rows.length) {
             if (existing.rows[0].check_in_time) {
                 await client.query('ROLLBACK');
                 return res.status(409).json({ success: false, message: 'Already signed in today' });
             }
-            await client.query(
+            const upd = await client.query(
                 `UPDATE attendance_records
                  SET status = $1, check_in_time = $2,
                      geo_latitude = $3, geo_longitude = $4,
                      geo_verified = $5, geo_distance_km = $6,
                      venue_latitude = $7, venue_longitude = $8,
                      capture_method = 'geo_self'
-                 WHERE learner_id = $9 AND attendance_date = $10`,
+                 WHERE learner_id = $9 AND attendance_date = $10
+                 RETURNING id, status, check_in_time, check_out_time, geo_verified`,
                 [status, checkInTimeStr, geo_latitude, geo_longitude,
                  geoVerified, distKm.toFixed(4), VENUE_LAT, VENUE_LNG,
                  learnerId, today]
             );
+            savedRow = upd.rows[0];
         } else {
-            await client.query(
+            const ins = await client.query(
                 `INSERT INTO attendance_records
                     (learner_id, attendance_date, status, check_in_time,
                      geo_latitude, geo_longitude, geo_verified, geo_distance_km,
                      venue_latitude, venue_longitude, capture_method, captured_by)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'geo_self',$11)`,
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'geo_self',$11)
+                 RETURNING id, status, check_in_time, check_out_time, geo_verified`,
                 [learnerId, today, status, checkInTimeStr,
                  geo_latitude, geo_longitude, geoVerified, distKm.toFixed(4),
                  VENUE_LAT, VENUE_LNG, learnerId]
             );
+            savedRow = ins.rows[0];
         }
 
         await client.query('COMMIT');
+
+        // Respond with exactly what was persisted (not the pre-write locals)
+        // so the frontend never has to guess at status independently.
         res.json({
             success: true,
-            status,
-            geo_verified: geoVerified,
+            status: savedRow.status,
+            check_in_time: savedRow.check_in_time,
+            check_out_time: savedRow.check_out_time,
+            geo_verified: savedRow.geo_verified,
             distance_km: Number(distKm.toFixed(4)),
-            message: isLate ? 'Signed in — marked as late' : 'Signed in'
+            message: savedRow.status === 'late' ? 'Signed in — marked as late' : 'Signed in'
         });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -233,7 +244,7 @@ router.post('/api/attendance/signout', isAuthenticated, isRole('learner'), async
                  checkout_geo_distance_km = $5
              WHERE learner_id = $6 AND attendance_date = $7
                AND check_in_time IS NOT NULL
-             RETURNING id`,
+             RETURNING id, status, check_in_time, check_out_time, geo_verified, checkout_geo_verified`,
             [checkOutTimeStr, geo_latitude, geo_longitude, geoVerified, distKm.toFixed(4), learnerId, today]
         );
 
@@ -243,7 +254,16 @@ router.post('/api/attendance/signout', isAuthenticated, isRole('learner'), async
         }
 
         await client.query('COMMIT');
-        res.json({ success: true, geo_verified: geoVerified, message: 'Signed out successfully' });
+
+        const savedRow = updated.rows[0];
+        res.json({
+            success: true,
+            status: savedRow.status,
+            check_in_time: savedRow.check_in_time,
+            check_out_time: savedRow.check_out_time,
+            geo_verified: savedRow.checkout_geo_verified,
+            message: 'Signed out successfully'
+        });
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Sign-out error:', err);

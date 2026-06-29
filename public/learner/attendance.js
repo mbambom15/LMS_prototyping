@@ -5,7 +5,7 @@ const CONFIG = {
         lng:  28.2034515438192
     },
     maxGeoKm:         0.05,            // 50 m radius
-    lateThresholdMin: 7 * 60 + 30,    // 07:30 → late
+    lateThresholdMin: 8 * 60 + 30,    // 08:30 → late
     signInOpenMin:    7 * 60,          // 07:00 sign-in opens
     signOutOpenMin:   14 * 60 + 30,   // 14:30 sign-out opens
     signOutCloseMin:  15 * 60        // 15:00 sign-out closes
@@ -14,10 +14,9 @@ const CONFIG = {
 // ── STATE ──────────────────────────────────────────────────────
 let permissionGranted = false;
 let signedIn          = false;
-let signedOut         = false;
+let signedOut          = false;
 let signInTimeObj     = null;
 let signOutTimeObj    = null;
-let isLateFlag        = false;
 let currentUser       = null; // set after login/session check
 
 let attendanceLog = [];
@@ -82,6 +81,30 @@ async function fetchCurrentUser() {
     }
 }
 
+// ── SINGLE SOURCE OF TRUTH FOR CHIP RENDERING ──────────────────
+// Both the page-load restore (loadTodayStatus) and the post-action
+// paths (postSignIn/postSignOut) funnel through this. Nothing else
+// is allowed to write into #signin-recorded / #signout-recorded, so
+// the chip can never disagree with what the server actually persisted.
+function renderSigninChip(checkInTime, status) {
+    if (!checkInTime) return;
+    signInTimeObj = new Date(checkInTime);
+    const recordedDiv = document.getElementById('signin-recorded');
+    const lateTag = status === 'late' ? ' · <span style="color:#f59e0b">Late</span>' : '';
+    recordedDiv.style.display = 'block';
+    recordedDiv.innerHTML = `✓ ${formatTime(signInTimeObj)} · recorded${lateTag}`;
+    document.getElementById('tw-signin').style.borderColor = '#10b981';
+}
+
+function renderSignoutChip(checkOutTime) {
+    if (!checkOutTime) return;
+    signOutTimeObj = new Date(checkOutTime);
+    const outDiv = document.getElementById('signout-recorded');
+    outDiv.style.display = 'block';
+    outDiv.innerHTML = `✓ ${formatTime(signOutTimeObj)} · recorded`;
+    document.getElementById('tw-signout').style.borderColor = '#10b981';
+}
+
 // Restore today's sign-in/out state on page load so buttons reflect
 // reality after a refresh, instead of resetting to "not signed in".
 async function loadTodayStatus() {
@@ -91,20 +114,8 @@ async function loadTodayStatus() {
         const data = await res.json();
         signedIn  = !!data.signedIn;
         signedOut = !!data.signedOut;
-        if (data.checkIn) {
-            signInTimeObj = new Date(data.checkIn);
-            const recordedDiv = document.getElementById('signin-recorded');
-            recordedDiv.style.display = 'block';
-            recordedDiv.innerHTML = `✓ ${formatTime(signInTimeObj)} · recorded`;
-            document.getElementById('tw-signin').style.borderColor = '#10b981';
-        }
-        if (data.checkOut) {
-            signOutTimeObj = new Date(data.checkOut);
-            const outDiv = document.getElementById('signout-recorded');
-            outDiv.style.display = 'block';
-            outDiv.innerHTML = `✓ ${formatTime(signOutTimeObj)} · recorded`;
-            document.getElementById('tw-signout').style.borderColor = '#10b981';
-        }
+        renderSigninChip(data.checkIn, data.status);
+        renderSignoutChip(data.checkOut);
         updateButtonsUI();
     } catch {
         // Non-fatal — buttons just default to "not signed in" state
@@ -151,14 +162,14 @@ function hideLateBanner() {
 
 // ── STATS ─────────────────────────────────────────────────────
 function updateStats() {
-    const present = attendanceLog.filter(e => e.status === 'present').length;
-    const late    = attendanceLog.filter(e => e.status === 'late').length;
+    const present = attendanceLog.filter(e => e.status === 'present' || e.status === 'late').length;
+    const lateCount = attendanceLog.filter(e => e.status === 'late').length;
     const absent  = attendanceLog.filter(e => e.status === 'absent').length;
     const total   = attendanceLog.length;
-    const rate    = total ? Math.round(((present + late) / total) * 100) : 0;
+    const rate    = total ? Math.round((present / total) * 100) : 0;
     document.getElementById('stat-present').textContent = present;
     document.getElementById('stat-absent').textContent  = absent;
-    document.getElementById('stat-late').textContent    = late;
+    document.getElementById('stat-late').textContent    = lateCount;
     document.getElementById('stat-rate').textContent    = rate + '%';
 }
 
@@ -209,37 +220,16 @@ function doSignIn() {
     btn.disabled = true;
 
     navigator.geolocation.getCurrentPosition(position => {
-        const now    = new Date();
-        signInTimeObj = now;
-        const nowMin  = now.getHours() * 60 + now.getMinutes();
-        const dist    = haversineKm(position.coords.latitude, position.coords.longitude,
-                                     CONFIG.venue.lat, CONFIG.venue.lng);
-        const onSite  = dist <= CONFIG.maxGeoKm;
-        isLateFlag    = nowMin > CONFIG.lateThresholdMin;
+        const now = new Date();
 
-        signedIn = true;
         btn.textContent = '↓ Sign in';
 
-        if (isLateFlag) {
-            const lateMsg = nowMin > CONFIG.signInOpenMin
-                ? `You signed in at <strong>${formatTime(now)}</strong> — this will be recorded as <strong>Late</strong>.`
-                : `Sign-in registered at <strong>${formatTime(now)}</strong>.`;
-            showLateBanner(lateMsg);
-        }
-
-        if (!onSite) {
-            const distM = Math.round(dist * 1000);
-            showLateBanner(`⚠ You appear to be <strong>${distM}m from the venue</strong> (max 50m). Your attendance will still be recorded but marked as unverified.`);
-        }
-
-        const recordedDiv = document.getElementById('signin-recorded');
-        recordedDiv.style.display = 'block';
-        recordedDiv.innerHTML = `✓ ${formatTime(now)} · ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}<br>${onSite ? '✅ On-site verified' : `⚠ ${Math.round(dist*1000)}m from venue`}${isLateFlag ? ' · <span style="color:#f59e0b">Late</span>' : ''}`;
-        document.getElementById('tw-signin').style.borderColor = '#10b981';
-
+        // NOTE: nothing here is painted to the page yet. The chip and the
+        // late/geo banners are only drawn once the server responds with the
+        // status it actually persisted — see postSignIn(). This is the fix
+        // for the bug where the chip showed a client-guessed status that
+        // could disagree with the DB.
         postSignIn(position.coords, now);
-
-        updateButtonsUI();
     }, (err) => {
         btn.textContent = '↓ Sign in';
         btn.disabled = false;
@@ -262,9 +252,24 @@ async function postSignIn(coords, timestamp) {
             const msg = await res.text();
             throw new Error(`Sign‑in failed (${res.status}): ${msg}`);
         }
-        // Server is the source of truth for status/geo — refresh history
-        // so the log/stats reflect what was actually persisted.
+
+        const data = await res.json();
+        signedIn = true;
+
+        // Server response is the only source of truth for status/geo.
+        renderSigninChip(data.check_in_time, data.status);
+
+        if (data.status === 'late') {
+            showLateBanner(`You signed in at <strong>${formatTime(new Date(data.check_in_time))}</strong> — this will be recorded as <strong>Late</strong>.`);
+        }
+        if (data.geo_verified === false) {
+            const distM = Math.round((data.distance_km || 0) * 1000);
+            showLateBanner(`⚠ You appear to be <strong>${distM}m from the venue</strong> (max 50m). Your attendance will still be recorded but marked as unverified.`);
+        }
+
+        // Refresh the log/stats so they reflect what was actually persisted.
         loadAttendanceHistory();
+        updateButtonsUI();
     } catch (e) {
         console.error(e);
         signedIn = false;
@@ -282,22 +287,10 @@ function doSignOut() {
     btn.disabled = true;
 
     navigator.geolocation.getCurrentPosition(pos => {
-        const now          = new Date();
-        signOutTimeObj     = now;
-        signedOut          = true;
-
-        const signOutStr   = formatTime(now);
-
-        const outDiv = document.getElementById('signout-recorded');
-        outDiv.style.display = 'block';
-        outDiv.innerHTML = `✓ ${signOutStr} · recorded`;
-        document.getElementById('tw-signout').style.borderColor = '#10b981';
-
+        const now = new Date();
         btn.textContent = '↑ Sign out';
-        updateButtonsUI();
-
+        // Chip is painted from the server response only — see postSignOut().
         postSignOut(pos.coords, now);
-        hideLateBanner();
     }, () => {
         btn.textContent = '↑ Sign out';
         btn.disabled = false;
@@ -320,7 +313,16 @@ async function postSignOut(coords, timestamp) {
             const msg = await res.text();
             throw new Error(`Sign‑out failed (${res.status}): ${msg}`);
         }
+
+        const data = await res.json();
+        signedOut = true;
+        renderSignoutChip(data.check_out_time);
+
+        document.getElementById('signout-btn').textContent = '↑ Sign out';
+        hideLateBanner();
+
         loadAttendanceHistory();
+        updateButtonsUI();
     } catch (e) {
         console.error(e);
         signedOut = false;

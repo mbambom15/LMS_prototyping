@@ -8,6 +8,9 @@ const dashboardRoutes = require('./routes/dashboard');
 require('dotenv').config();
 require('./jobs/scheduler');
 
+const crypto = require('crypto');
+const { sendWelcomeEmail, sendUserDetailsEmail } = require('./utils/emailService');
+
 const authRoutes = require('./routes/auth');
 const attendanceRoutes = require('./routes/attendance');
 const { isAuthenticated, isRole } = require('./middleware/auth');
@@ -100,7 +103,29 @@ app.post('/api/create-user', isAuthenticated, isRole('admin'), async (req, res) 
         }
 
         await client.query('COMMIT');
-        res.json({ success: true, message: 'User created successfully', userId: newUserId });
+
+        // Send the welcome email with the exact password the admin typed/generated.
+        // Don't let an email failure roll back or fail the user creation itself.
+        let emailSent = true;
+        try {
+            await sendWelcomeEmail({
+                to: email,
+                firstName: first_name,
+                password
+            });
+        } catch (emailErr) {
+            emailSent = false;
+            console.error('Welcome email failed for', email, ':', emailErr.message);
+        }
+
+        res.json({
+            success: true,
+            message: emailSent
+                ? 'User created successfully and welcome email sent'
+                : 'User created successfully, but the welcome email failed to send',
+            userId: newUserId,
+            emailSent,
+        });
     } catch (err) {
         await client.query('ROLLBACK');
         console.error(err);
@@ -141,6 +166,51 @@ app.get('/api/users', isAuthenticated, isRole('admin'), async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to fetch users' });
     }
 });
+app.post('/api/users/:id/send-details', isAuthenticated, isRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRe.test(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
+
+        const userResult = await pool.query(
+            `SELECT user_id, name, surname, email FROM users WHERE user_id = $1 AND is_deleted = FALSE`,
+            [id]
+        );
+        if (!userResult.rows.length) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        const user = userResult.rows[0];
+        if (!user.email) {
+            return res.status(400).json({ success: false, message: 'User has no email address on file' });
+        }
+
+        const newPassword = generateTempPassword();
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await pool.query(
+            `UPDATE users SET password_hashed = $1, updated_at = NOW() WHERE user_id = $2`,
+            [hashedPassword, id]
+        );
+
+        await sendUserDetailsEmail({ to: user.email, firstName: user.name, password: newPassword });
+
+        res.json({ success: true, message: `Details sent to ${user.email} (password was reset).` });
+    } catch (err) {
+        console.error('POST /api/users/:id/send-details error:', err);
+        res.status(500).json({ success: false, message: 'Failed to send user details: ' + err.message });
+    }
+});
+
+/** Random temp password: 12 chars, no ambiguous characters */
+function generateTempPassword(length = 12) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    const bytes = crypto.randomBytes(length);
+    let pw = '';
+    for (let i = 0; i < length; i++) pw += chars[bytes[i] % chars.length];
+    return pw;
+}
 
 // ── PUT /api/users/:id  (admin: update role / status) ────────────
 app.put('/api/users/:id', isAuthenticated, isRole('admin'), async (req, res) => {

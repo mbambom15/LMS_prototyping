@@ -228,6 +228,7 @@ function renderUserRow(u) {
       <td><span class="badge ${badge}">${escHtml(u.status)}</span></td>
       <td>
         <button class="btn btn-xs btn-blue" onclick="enterEditMode(this)">Edit</button>
+        <button class="btn btn-xs" onclick="sendUserDetails('${u.user_id}', '${escHtml(u.email)}')">Send details</button>
         <button class="btn btn-xs btn-red"  onclick="confirmDeleteUser('${u.user_id}', '${escHtml(name)}')">Remove</button>
       </td>
     </tr>`;
@@ -307,6 +308,19 @@ async function confirmDeleteUser(userId, name) {
   } catch (err) {
     console.error('confirmDeleteUser:', err);
     showTableMessage('Remove failed: ' + err.message, 'error');
+  }
+}
+async function sendUserDetails(userId, email) {
+  if (!confirm(`Send login details to ${email}?\n\nThis resets their password to a new temporary one and emails it to them.`)) return;
+
+  try {
+    const res = await fetch(`/api/users/${userId}/send-details`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    showTableMessage(data.message, 'success');
+  } catch (err) {
+    console.error('sendUserDetails:', err);
+    showTableMessage('Send failed: ' + err.message, 'error');
   }
 }
 

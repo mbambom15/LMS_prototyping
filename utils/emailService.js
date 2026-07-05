@@ -27,9 +27,11 @@ function detailsHtml({ firstName, email, password, heading, intro }) {
       <p>Hi ${firstName},</p>
       <p>${intro}</p>
       <p style="background:#f1f6fb;padding:12px 16px;border-radius:6px;font-size:14px">
+        <strong>Website:</strong> nkanyezionline.co.za<br>
         <strong>Username:</strong> ${email}<br>
         <strong>Password:</strong> ${password}
       </p>
+      <p style="font-size:13px;color:#a32d2d;font-weight:bold">Please do not share your password with anyone.</p>
       <p style="font-size:13px;color:#666">Please log in and change your password as soon as possible.</p>
       <p>— Nkanyezi LMS Team</p>
     </div>`;

@@ -154,7 +154,7 @@ function toggleArea(id) {
     // Qualification‑related triggers (merged from the old second function)
     if (id === 'all-qual') refreshQualTable();
     if (id === 'remove-qual') populateRemoveSelect();
-    if (id === 'upload-material') onUploadQualChange();
+    if (id === 'upload-material') populateUploadQualSelect();
 
     if (id === 'all-deals') refreshDealTable();
     if (id === 'add-deal') initDealSection();
@@ -384,185 +384,6 @@ function escHtml(str) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   QUAL PREVIEW
-══════════════════════════════════════════════════════════ */
-const qualData = {
-  it: { title: 'IT Support — NQF 4', seta: 'MICT SETA · 12 months' },
-  ba: { title: 'Business Administration — NQF 3', seta: 'SERVICES SETA · 12 months' },
-  fin: { title: 'Finance & Accounting — NQF 4', seta: 'FASSET · 18 months' }
-};
-
-function updatePreview() {
-  const q = document.getElementById('qual-select').value;
-  const uSel = document.getElementById('unit-select');
-  const uText = uSel.options[uSel.selectedIndex].text;
-  const uNum = uSel.selectedIndex + 1;
-  const desc = document.getElementById('desc-input').value;
-  document.getElementById('prev-title').textContent = qualData[q].title;
-  document.getElementById('prev-seta').textContent = qualData[q].seta;
-  document.getElementById('prev-unit-name').textContent = uText;
-  document.getElementById('prev-unit-num').textContent = uNum;
-  document.getElementById('prev-desc').textContent = desc || 'No description provided.';
-  const count = document.getElementById('file-list').children.length;
-  document.getElementById('prev-file-count').textContent = count;
-}
-
-/* ══════════════════════════════════════════════════════════
-   FILE UPLOAD
-══════════════════════════════════════════════════════════ */
-const typeMap = {
-  pdf: { label: 'PDF', bg: '#fcebeb', color: '#a32d2d' },
-  mp4: { label: 'MP4', bg: '#e6f1fb', color: '#185fa5' },
-  pptx: { label: 'PPT', bg: '#faece7', color: '#993c1d' },
-  ppt: { label: 'PPT', bg: '#faece7', color: '#993c1d' },
-  docx: { label: 'DOC', bg: '#faeeda', color: '#633806' },
-  doc: { label: 'DOC', bg: '#faeeda', color: '#633806' }
-};
-
-function handleFiles(files) {
-  const list = document.getElementById('file-list');
-  const grid = document.getElementById('prev-materials');
-  Array.from(files).forEach(f => {
-    const ext = f.name.split('.').pop().toLowerCase();
-    const t = typeMap[ext] || { label: ext.toUpperCase(), bg: '#f1efe8', color: '#5f5e5a' };
-    const size = f.size > 1048576
-      ? (f.size / 1048576).toFixed(1) + ' MB'
-      : (f.size / 1024).toFixed(0) + ' KB';
-
-    const item = document.createElement('div');
-    item.className = 'file-item';
-    item.innerHTML = `
-      <div class="file-icon" style="background:${t.bg};color:${t.color}">${t.label}</div>
-      <span class="file-name">${escHtml(f.name)}</span>
-      <span class="file-size">${size}</span>
-      <span class="file-remove" onclick="removeFile(this)">Remove</span>`;
-    list.appendChild(item);
-
-    const tile = document.createElement('div');
-    tile.className = 'material-tile';
-    tile.innerHTML = `
-      <div class="material-tile-icon" style="background:${t.bg};color:${t.color}">${t.label}</div>
-      <div class="material-tile-name">${escHtml(f.name)}</div>
-      <div class="material-tile-size">${size}</div>`;
-    grid.appendChild(tile);
-
-    document.getElementById('prev-file-count').textContent =
-      document.getElementById('file-list').children.length;
-  });
-}
-
-function removeFile(el) {
-  el.closest('.file-item').remove();
-  document.getElementById('prev-file-count').textContent =
-    document.getElementById('file-list').children.length;
-}
-
-/* ── Drag and drop ── */
-const dropZone = document.querySelector('.drop-zone');
-if (dropZone) {
-  dropZone.addEventListener('dragover', e => {
-    e.preventDefault();
-    dropZone.style.background = 'var(--bg-tertiary)';
-  });
-  dropZone.addEventListener('dragleave', () => {
-    dropZone.style.background = 'var(--bg-secondary)';
-  });
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.style.background = 'var(--bg-secondary)';
-    handleFiles(e.dataTransfer.files);
-  });
-}
-
-/* ══════════════════════════════════════════════════════════
-   ADD USER FORM
-══════════════════════════════════════════════════════════ */
-function showMessage(text, type) {
-  let msgDiv = document.getElementById('addUserMessage');
-  if (!msgDiv) {
-    const form = document.getElementById('addUserForm');
-    if (!form) return;
-    msgDiv = document.createElement('div');
-    msgDiv.id = 'addUserMessage';
-    msgDiv.style.marginTop = '12px';
-    msgDiv.style.fontSize = '13px';
-    form.appendChild(msgDiv);
-  }
-  msgDiv.textContent = text;
-  msgDiv.className = type === 'success' ? 'success-message' : 'error-message';
-  msgDiv.style.display = 'block';
-  setTimeout(() => { msgDiv.style.display = 'none'; }, 5000);
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-  const addUserForm = document.getElementById('addUserForm');
-  if (!addUserForm) return;
-
-  // Show schedule fields only when role = learner
-  const roleSelect = document.getElementById('role');
-  const scheduleRow = document.getElementById('schedule-row');
-  function syncScheduleVisibility() {
-    if (!roleSelect || !scheduleRow) return;
-    scheduleRow.style.display = roleSelect.value === 'learner' ? 'flex' : 'none';
-  }
-  if (roleSelect) {
-    roleSelect.addEventListener('change', syncScheduleVisibility);
-    syncScheduleVisibility(); // run once on load — role defaults to "learner"
-  }
-  addUserForm.addEventListener('submit', async function (e) {
-    e.preventDefault();
-    const first_name = document.getElementById('first_name').value.trim();
-    const last_name = document.getElementById('last_name').value.trim();
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    const id_number = document.getElementById('id_number').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-    const gender = document.getElementById('gender').value;
-    const role = document.getElementById('role').value;
-    const status = document.getElementById('status').value;
-    const qualification = document.getElementById('qualification').value;
-    const schedule_day_1 = document.getElementById('schedule_day_1')?.value || '';
-    const schedule_day_2 = document.getElementById('schedule_day_2')?.value || '';
-
-    if (!first_name || !last_name || !email || !password) {
-      showMessage('Please fill all required fields.', 'error');
-      return;
-    }
-
-    if (role === 'learner' && schedule_day_1 === '') {
-      showMessage('Please select at least one attendance day for this learner.', 'error');
-      return;
-    }
-
-    const submitBtn = addUserForm.querySelector('button[type="submit"]');
-    const originalText = submitBtn.textContent;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Saving…';
-
-    try {
-      const response = await fetch('/api/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ first_name, last_name, email, password, id_number, phone, gender, role, status, qualification, schedule_day_1, schedule_day_2 })
-      });
-      const result = await response.json();
-      if (result.success) {
-        showMessage(' User created successfully!', 'success');
-        addUserForm.reset();
-      } else {
-        showMessage(result.message, 'error');
-      }
-    } catch (err) {
-      console.error('Fetch error:', err);
-      showMessage('Could not connect to server. Is it running?', 'error');
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = originalText;
-    }
-  });
-});
-
-/* ══════════════════════════════════════════════════════════
    qualifications.js
    Handles all Qualification management:
      - Create qualification + units
@@ -571,10 +392,15 @@ document.addEventListener('DOMContentLoaded', function () {
      - Toggle active/draft status inline
      - Remove qualification (with active-enrolment guard)
      - Unit listing inside update panel
+     - Unit-standard cap enforcement (stipulated_units on qualifications)
+     - Material upload (qual → unit → Azure Blob) with staged
+       file list — files are only sent to the server when the
+       admin clicks "Upload files", not on selection/drop.
 ══════════════════════════════════════════════════════════ */
 
 /* ── State ── */
 let allQuals = [];
+let currentUploadUnitId = null; // tracks which unit the upload-material panel is targeting
 
 /* ════════════════════════════════════════════════════════
    SECTION INIT — called when the qualifications section opens
@@ -711,6 +537,9 @@ async function toggleQualStatus(qualId, newStatus) {
 
 /* ════════════════════════════════════════════════════════
    UPDATE QUALIFICATION PANEL
+   Includes the unit-standard cap (stipulated_units) control
+   and the "+ Add unit standard" action, which is the only
+   supported way to add units beyond what was set at creation.
 ════════════════════════════════════════════════════════ */
 
 /** Load a qualification into the update form */
@@ -741,6 +570,9 @@ async function openUpdatePanel(qualId) {
 function renderUpdateForm(q, units) {
   const inner = document.getElementById('update-qual-inner');
   if (!inner) return;
+
+  const unitCount = units?.length || 0;
+  const cap = q.stipulated_units;
 
   const unitsHtml = (units || []).map(u => `
     <div class="unit-edit-row" data-unit-id="${u.id}">
@@ -781,12 +613,23 @@ function renderUpdateForm(q, units) {
       </div>
     </div>
 
-    ${units?.length ? `
-      <div style="margin:16px 0 8px">
-        <div class="form-label" style="margin-bottom:8px">Units <span style="font-weight:400;color:var(--text-secondary)">(edit titles, descriptions &amp; credits)</span></div>
-        <div id="units-edit-list">${unitsHtml}</div>
+    <div style="margin:16px 0 8px">
+      <div class="form-label" style="margin-bottom:8px">Units <span style="font-weight:400;color:var(--text-secondary)">(edit titles, descriptions &amp; credits)</span></div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 12px;background:var(--bg-secondary);border-radius:6px">
+        <span style="font-size:12px;color:var(--text-secondary)">
+          Unit standards: <strong style="color:var(--text-primary)">${unitCount}</strong> / <strong style="color:var(--text-primary)">${cap ?? '—'}</strong> stipulated
+        </span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <label class="form-label" style="margin:0;font-size:11px">Cap</label>
+          <input type="number" id="uq-unit-cap" value="${cap ?? ''}" min="${unitCount}" style="width:64px;font-size:12px;padding:3px 6px">
+          <button class="btn btn-xs" onclick="saveUnitCap('${q.id}')">Update cap</button>
+          <button class="btn btn-xs btn-blue" onclick="addUnitPrompt('${q.id}')">+ Add unit standard</button>
+        </div>
       </div>
-    ` : ''}
+
+      ${units?.length ? `<div id="units-edit-list">${unitsHtml}</div>` : `<div style="padding:10px;color:var(--text-tertiary);font-size:12px">No unit standards yet. Use "+ Add unit standard" above.</div>`}
+    </div>
 
     <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
       <button class="btn btn-blue" onclick="saveQualUpdate()">Save changes</button>
@@ -842,6 +685,47 @@ async function saveQualUpdate() {
       msgEl.className = 'error-message';
       msgEl.style.display = 'block';
     }
+  }
+}
+
+/** Raise/lower the stipulated unit cap. Server rejects a cap below the
+ *  number of unit standards that already exist for this qualification. */
+async function saveUnitCap(qualId) {
+  const input = document.getElementById('uq-unit-cap');
+  const val = parseInt(input?.value, 10);
+  if (Number.isNaN(val)) return;
+
+  try {
+    const res = await fetch(`/api/qualifications/${qualId}/unit-cap`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stipulated_units: val }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    await openUpdatePanel(qualId); // reload with fresh cap/count
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+/** Add a new unit standard — server enforces the stipulated cap and
+ *  returns an error message if the qualification is already at capacity. */
+async function addUnitPrompt(qualId) {
+  const title = prompt('New unit standard title:');
+  if (!title || !title.trim()) return;
+
+  try {
+    const res = await fetch(`/api/qualifications/${qualId}/units`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title.trim() }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    await openUpdatePanel(qualId); // reload to show the new unit row
+  } catch (err) {
+    alert(err.message); // surfaces the cap-reached message from the server
   }
 }
 
@@ -902,12 +786,53 @@ async function handleRemoveQualPanel() {
 }
 
 /* ════════════════════════════════════════════════════════
-   UPLOAD MATERIAL  — unit <select> population
+   UPLOAD MATERIAL PANEL
+   Qualification <select> is populated from the database
+   (populateUploadQualSelect), which then loads that
+   qualification's real units (onUploadQualChange). Files are
+   staged locally when chosen/dropped, then uploaded to Azure
+   Blob Storage via POST /api/units/:unitId/materials only
+   when the admin clicks the "Upload files" button. A SAS URL
+   is returned for each already-stored file so it can be
+   opened immediately from the preview list.
 ════════════════════════════════════════════════════════ */
+
+/** Populate the qualification <select> in the upload-material panel
+ *  from the live database list (mirrors populateRemoveSelect). */
+async function populateUploadQualSelect() {
+  const sel = document.getElementById('upload-qual-select');
+  if (!sel) return;
+
+  sel.innerHTML = `<option value="">Loading…</option>`;
+  try {
+    const quals = allQuals.length ? allQuals : await fetchQuals();
+    sel.innerHTML = `<option value="">— Select qualification —</option>` +
+      quals.map(q =>
+        `<option value="${q.id}">${escHtml(q.title)} (${q.nqf_level})</option>`
+      ).join('');
+  } catch {
+    sel.innerHTML = `<option value="">Failed to load</option>`;
+  }
+  // Reset the unit select and any stale file list until a qualification is chosen
+  const unitSel = document.getElementById('upload-unit-select');
+  if (unitSel) unitSel.innerHTML = `<option value="">Select a qualification first</option>`;
+  currentUploadUnitId = null;
+  clearMaterialFileList();
+}
+
+/** Load the real units for the chosen qualification into the unit <select>. */
 async function onUploadQualChange() {
   const qualId = document.getElementById('upload-qual-select')?.value;
   const unitSel = document.getElementById('upload-unit-select');
-  if (!unitSel || !qualId) return;
+  if (!unitSel) return;
+
+  currentUploadUnitId = null;
+  clearMaterialFileList();
+
+  if (!qualId) {
+    unitSel.innerHTML = `<option value="">Select a qualification first</option>`;
+    return;
+  }
 
   unitSel.innerHTML = `<option>Loading units…</option>`;
   try {
@@ -915,10 +840,10 @@ async function onUploadQualChange() {
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
     if (!data.units.length) {
-      unitSel.innerHTML = `<option value="">No units found</option>`;
+      unitSel.innerHTML = `<option value="">No unit standards found — add one under "Update"</option>`;
       return;
     }
-    unitSel.innerHTML = data.units.map(u =>
+    unitSel.innerHTML = `<option value="">— Select unit —</option>` + data.units.map(u =>
       `<option value="${u.id}">Unit ${u.unit_number} — ${escHtml(u.title)}</option>`
     ).join('');
   } catch (err) {
@@ -926,27 +851,178 @@ async function onUploadQualChange() {
   }
 }
 
+/** Track which unit is currently targeted, and load its existing
+ *  materials into the preview list so admins can see what's already there. */
+async function onUploadUnitChange() {
+  const unitId = document.getElementById('upload-unit-select')?.value;
+  currentUploadUnitId = unitId || null;
+  clearMaterialFileList();
+  if (!unitId) return;
+  await loadExistingMaterials(unitId);
+}
+
+/** Clear both the staged (not-yet-uploaded) files and the visible
+ *  file list, and hide the "Upload files / Clear" action row. */
+function clearMaterialFileList() {
+  const list = document.getElementById('file-list');
+  if (list) list.innerHTML = '';
+  const existing = document.getElementById('existing-materials-list');
+  if (existing) existing.innerHTML = `<div style="padding:10px;color:var(--text-tertiary);font-size:12px">Select a unit to see its materials.</div>`;
+  stagedFiles = [];
+  const actions = document.getElementById('upload-actions');
+  if (actions) actions.style.display = 'none';
+}
+/** Show materials already uploaded for this unit, each linking to a
+/** Show materials already uploaded for this unit, with Edit / Replace / Delete
+ *  actions. Kept in its own container (#existing-materials-list) so it never
+ *  mixes with the staged (not-yet-uploaded) file list. */
+async function loadExistingMaterials(unitId) {
+  const list = document.getElementById('existing-materials-list');
+  if (!list) return;
+
+  list.innerHTML = `<div style="padding:10px;color:var(--text-secondary);font-size:12px">Loading materials…</div>`;
+
+  try {
+    const res = await fetch(`/api/units/${unitId}/materials`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    if (!data.materials.length) {
+      list.innerHTML = `<div style="padding:10px;color:var(--text-tertiary);font-size:12px">No materials uploaded for this unit yet.</div>`;
+      return;
+    }
+
+    list.innerHTML = data.materials.map(m => renderMaterialRow(m)).join('');
+  } catch (err) {
+    list.innerHTML = `<div style="padding:10px;color:var(--color-red);font-size:12px">Failed to load materials: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderMaterialRow(m) {
+  const ext = (m.file_name.split('.').pop() || '').toLowerCase();
+  const t = typeMap[ext] || { label: ext.toUpperCase(), bg: '#f1efe8', color: '#5f5e5a' };
+  const size = m.file_size_bytes > 1048576
+    ? (m.file_size_bytes / 1048576).toFixed(1) + ' MB'
+    : ((m.file_size_bytes || 0) / 1024).toFixed(0) + ' KB';
+
+  return `
+    <div class="material-row" data-material-id="${m.id}" data-title="${escHtml(m.title || m.file_name)}" data-desc="${escHtml(m.description || '')}">
+      <div class="file-icon" style="background:${t.bg};color:${t.color}">${t.label}</div>
+      <div class="material-info">
+        <a class="material-title" href="${m.url}" target="_blank" rel="noopener">${escHtml(m.title || m.file_name)}</a>
+        <div class="material-meta">${escHtml(m.file_name)} · ${size}${m.description ? ' · ' + escHtml(m.description) : ''}</div>
+      </div>
+      <div class="material-actions">
+        <button class="btn btn-xs" onclick="editMaterial(this)">Edit</button>
+        <button class="btn btn-xs" onclick="triggerReplaceMaterial(${m.id})">Replace</button>
+        <button class="btn btn-xs btn-red" onclick="deleteMaterial(${m.id}, '${escHtml(m.title || m.file_name)}')">Delete</button>
+      </div>
+    </div>`;
+}
+
+/** Switch a material row into inline-edit mode (title + description) */
+function editMaterial(btn) {
+  const row = btn.closest('.material-row');
+  const info = row.querySelector('.material-info');
+  const currentTitle = row.dataset.title;
+  const currentDesc = row.dataset.desc;
+
+  info.innerHTML = `
+    <input type="text" class="material-edit-title" value="${escHtml(currentTitle)}"
+      style="font-size:13px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);width:100%;margin-bottom:4px">
+    <textarea class="material-edit-desc" rows="2"
+      style="font-size:11px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);width:100%;resize:vertical">${escHtml(currentDesc)}</textarea>`;
+
+  row.querySelector('.material-actions').innerHTML = `
+    <button class="btn btn-xs btn-green" onclick="saveMaterialEdit(this)">Save</button>
+    <button class="btn btn-xs" onclick="loadExistingMaterials(currentUploadUnitId)">Cancel</button>`;
+}
+
+/** Save an edited title/description via PATCH /api/materials/:id */
+async function saveMaterialEdit(btn) {
+  const row = btn.closest('.material-row');
+  const materialId = row.dataset.materialId;
+  const title = row.querySelector('.material-edit-title').value.trim();
+  const description = row.querySelector('.material-edit-desc').value.trim();
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await fetch(`/api/materials/${materialId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, description }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    await loadExistingMaterials(currentUploadUnitId);
+  } catch (err) {
+    alert('Update failed: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+}
+
+/** Permanently delete a material (blob + DB row) via DELETE /api/materials/:id */
+async function deleteMaterial(materialId, name) {
+  if (!confirm(`Delete "${name}"?\n\nThis permanently removes the file from storage.`)) return;
+  try {
+    const res = await fetch(`/api/materials/${materialId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    await loadExistingMaterials(currentUploadUnitId);
+  } catch (err) {
+    alert('Delete failed: ' + err.message);
+  }
+}
+
+/** Open a one-off file picker for replacing a single material's underlying file */
+function triggerReplaceMaterial(materialId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.mp4';
+  input.onchange = () => {
+    if (input.files.length) replaceMaterialFile(materialId, input.files[0]);
+  };
+  input.click();
+}
+
+/** Upload the replacement file via POST /api/materials/:id/replace */
+async function replaceMaterialFile(materialId, file) {
+  const row = document.querySelector(`.material-row[data-material-id="${materialId}"]`);
+  const actions = row?.querySelector('.material-actions');
+  if (actions) actions.innerHTML = `<span style="font-size:11px;color:var(--text-tertiary)">Replacing…</span>`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch(`/api/materials/${materialId}/replace`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+    await loadExistingMaterials(currentUploadUnitId);
+  } catch (err) {
+    alert('Replace failed: ' + err.message);
+    await loadExistingMaterials(currentUploadUnitId);
+  }
+}
+
 /* ════════════════════════════════════════════════════════
-   POPULATE all qual <select> dropdowns (create/upload/remove)
+   POPULATE all qual <select> dropdowns (create/remove/add-user)
+   Note: the upload-material qual select is handled separately
+   by populateUploadQualSelect() so it always reflects the live
+   qualification list the moment its panel is opened.
 ════════════════════════════════════════════════════════ */
 async function populateQualSelects() {
   try {
     const quals = await fetchQuals();
 
-    const options = quals.map(q =>
-      `<option value="${q.id}">${escHtml(q.title)} (${q.nqf_level})</option>`
-    ).join('');
-
-    // Upload material qual select
-    const uploadSel = document.getElementById('upload-qual-select');
-    if (uploadSel) {
-      uploadSel.innerHTML = `<option value="">— Select qualification —</option>` + options;
-    }
-
     // Remove qual select
     const removeSel = document.getElementById('remove-qual-select');
     if (removeSel) {
-      removeSel.innerHTML = `<option value="">— Select qualification —</option>` + options;
+      removeSel.innerHTML = `<option value="">— Select qualification —</option>` +
+        quals.map(q => `<option value="${q.id}">${escHtml(q.title)} (${q.nqf_level})</option>`).join('');
     }
 
     // Enrol qualification select in add-user form (already in server.js, keep in sync)
@@ -971,7 +1047,8 @@ function showQualMsg(panel, text, type) {
     el.id = id;
     el.style.cssText = 'margin:8px 0;font-size:13px;padding:8px 12px;border-radius:6px;';
     const form = document.getElementById(`createQualForm`) ||
-      document.getElementById(`qual-${panel}-area`);
+      document.getElementById(`qual-${panel}-area`) ||
+      document.getElementById('upload-material');
     if (form) form.appendChild(el);
   }
   el.textContent = text;
@@ -996,6 +1073,249 @@ function showQualTableMsg(text, type) {
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
+
+/* ══════════════════════════════════════════════════════════
+   FILE UPLOAD  (upload-material panel)
+   NEW BEHAVIOUR: handleFiles() now only STAGES files chosen or
+   dropped into memory (stagedFiles) and renders them with a
+   "Pending" status + a remove (✕) button. Nothing is sent to
+   the server until the admin clicks the "Upload files" button,
+   which calls submitMaterialUpload() — that's the only place
+   POST /api/units/:unitId/materials is actually called.
+   The #upload-status-banner + .upload-spinner (already styled
+   in admin.html) light up while the batch is in flight.
+══════════════════════════════════════════════════════════ */
+const typeMap = {
+  pdf: { label: 'PDF', bg: '#fcebeb', color: '#a32d2d' },
+  mp4: { label: 'MP4', bg: '#e6f1fb', color: '#185fa5' },
+  pptx: { label: 'PPT', bg: '#faece7', color: '#993c1d' },
+  ppt: { label: 'PPT', bg: '#faece7', color: '#993c1d' },
+  docx: { label: 'DOC', bg: '#faeeda', color: '#633806' },
+  doc: { label: 'DOC', bg: '#faeeda', color: '#633806' }
+};
+
+/** Files picked/dropped but not yet uploaded */
+let stagedFiles = [];
+
+/** Add newly picked/dropped files to the staging list and re-render.
+ *  Requires a qualification + unit to already be selected, same
+ *  guard as before — just no network call happens here anymore. */
+function handleFiles(files) {
+  if (!currentUploadUnitId) {
+    showQualMsg('upload', 'Select a qualification and unit standard first.', 'error');
+    const input = document.getElementById('file-input');
+    if (input) input.value = '';
+    return;
+  }
+  stagedFiles.push(...Array.from(files));
+  renderStagedFiles();
+  const input = document.getElementById('file-input');
+  if (input) input.value = '';
+}
+
+/** Render the staged (pending) file list with remove buttons,
+ *  and show/hide the Upload/Clear action row accordingly. */
+function renderStagedFiles() {
+  const list = document.getElementById('file-list');
+  const actions = document.getElementById('upload-actions');
+  if (!list) return;
+
+  list.innerHTML = stagedFiles.map((f, i) => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    const t = typeMap[ext] || { label: ext.toUpperCase(), bg: '#f1efe8', color: '#5f5e5a' };
+    const size = f.size > 1048576
+      ? (f.size / 1048576).toFixed(1) + ' MB'
+      : (f.size / 1024).toFixed(0) + ' KB';
+    return `
+      <div class="file-item" data-idx="${i}">
+        <div class="file-icon" style="background:${t.bg};color:${t.color}">${t.label}</div>
+        <span class="file-name">${escHtml(f.name)}</span>
+        <span class="file-size">${size}</span>
+        <span class="file-status" style="font-size:11px;color:var(--text-tertiary)">Pending</span>
+        <button type="button" class="btn btn-xs" onclick="removeStagedFile(${i})">✕</button>
+      </div>`;
+  }).join('');
+
+  if (actions) actions.style.display = stagedFiles.length ? 'flex' : 'none';
+}
+
+/** Remove a single staged file before it's uploaded */
+function removeStagedFile(i) {
+  stagedFiles.splice(i, 1);
+  renderStagedFiles();
+}
+
+/** Clear all staged files without uploading anything */
+function clearStagedFiles() {
+  stagedFiles = [];
+  renderStagedFiles();
+}
+
+/** Actually upload every staged file — called by the "Upload files"
+ *  button. Uploads sequentially so per-file status updates read
+ *  cleanly; shows the overall spinner banner while running. */
+async function submitMaterialUpload() {
+  if (!currentUploadUnitId || !stagedFiles.length) return;
+
+  const banner = document.getElementById('upload-status-banner');
+  const btn = document.getElementById('submit-upload-btn');
+  const description = document.getElementById('desc-input')?.value || '';
+
+  if (btn) btn.disabled = true;
+  if (banner) {
+    banner.style.display = 'flex';
+    banner.innerHTML = `<div class="upload-spinner"></div><span>Uploading ${stagedFiles.length} file(s)…</span>`;
+  }
+
+  const items = document.querySelectorAll('#file-list .file-item');
+  let successCount = 0;
+
+  for (let i = 0; i < stagedFiles.length; i++) {
+    const f = stagedFiles[i];
+    const statusEl = items[i]?.querySelector('.file-status');
+    if (statusEl) statusEl.textContent = 'Uploading…';
+
+    const formData = new FormData();
+    formData.append('file', f);
+    formData.append('title', f.name);
+    formData.append('description', description);
+
+    try {
+      const res = await fetch(`/api/units/${currentUploadUnitId}/materials`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      if (statusEl) {
+        statusEl.textContent = 'Uploaded ✓';
+        statusEl.style.color = 'var(--color-green, #1d9e75)';
+      }
+      successCount++;
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = 'Failed: ' + err.message;
+        statusEl.style.color = 'var(--color-red)';
+      }
+    }
+  }
+
+  if (banner) {
+    banner.innerHTML = `<span>${successCount} of ${stagedFiles.length} file(s) uploaded successfully.</span>`;
+    setTimeout(() => { banner.style.display = 'none'; }, 4000);
+  }
+  if (btn) btn.disabled = false;
+
+  stagedFiles = [];
+  await loadExistingMaterials(currentUploadUnitId);
+}
+
+/* ── Drag and drop ── */
+const dropZone = document.querySelector('.drop-zone');
+if (dropZone) {
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.style.background = 'var(--bg-tertiary)';
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.background = 'var(--bg-secondary)';
+  });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.background = 'var(--bg-secondary)';
+    handleFiles(e.dataTransfer.files);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   ADD USER FORM
+══════════════════════════════════════════════════════════ */
+function showMessage(text, type) {
+  let msgDiv = document.getElementById('addUserMessage');
+  if (!msgDiv) {
+    const form = document.getElementById('addUserForm');
+    if (!form) return;
+    msgDiv = document.createElement('div');
+    msgDiv.id = 'addUserMessage';
+    msgDiv.style.marginTop = '12px';
+    msgDiv.style.fontSize = '13px';
+    form.appendChild(msgDiv);
+  }
+  msgDiv.textContent = text;
+  msgDiv.className = type === 'success' ? 'success-message' : 'error-message';
+  msgDiv.style.display = 'block';
+  setTimeout(() => { msgDiv.style.display = 'none'; }, 5000);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const addUserForm = document.getElementById('addUserForm');
+  if (!addUserForm) return;
+
+  // Show schedule fields only when role = learner
+  const roleSelect = document.getElementById('role');
+  const scheduleRow = document.getElementById('schedule-row');
+  function syncScheduleVisibility() {
+    if (!roleSelect || !scheduleRow) return;
+    scheduleRow.style.display = roleSelect.value === 'learner' ? 'flex' : 'none';
+  }
+  if (roleSelect) {
+    roleSelect.addEventListener('change', syncScheduleVisibility);
+    syncScheduleVisibility(); // run once on load — role defaults to "learner"
+  }
+  addUserForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const first_name = document.getElementById('first_name').value.trim();
+    const last_name = document.getElementById('last_name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const id_number = document.getElementById('id_number').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const gender = document.getElementById('gender').value;
+    const role = document.getElementById('role').value;
+    const status = document.getElementById('status').value;
+    const qualification = document.getElementById('qualification').value;
+    const schedule_day_1 = document.getElementById('schedule_day_1')?.value || '';
+    const schedule_day_2 = document.getElementById('schedule_day_2')?.value || '';
+
+    if (!first_name || !last_name || !email || !password) {
+      showMessage('Please fill all required fields.', 'error');
+      return;
+    }
+
+    if (role === 'learner' && schedule_day_1 === '') {
+      showMessage('Please select at least one attendance day for this learner.', 'error');
+      return;
+    }
+
+    const submitBtn = addUserForm.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+      const response = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ first_name, last_name, email, password, id_number, phone, gender, role, status, qualification, schedule_day_1, schedule_day_2 })
+      });
+      const result = await response.json();
+      if (result.success) {
+        showMessage(' User created successfully!', 'success');
+        addUserForm.reset();
+      } else {
+        showMessage(result.message, 'error');
+      }
+    } catch (err) {
+      console.error('Fetch error:', err);
+      showMessage('Could not connect to server. Is it running?', 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+  });
+});
+
 /* ══════════════════════════════════════════════════════════
    deals.js  — Nkanyezi LMS Admin
    Deal management: create, view, detail drawer, link learners,

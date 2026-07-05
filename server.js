@@ -38,6 +38,7 @@ app.use(attendanceRoutes);
 app.use(qualificationsRoutes);
 app.use(dealsRoutes);
 app.use(dashboardRoutes);
+app.use(require('./routes/materials'));
 
 // Protect /admin
 app.use('/admin', isAuthenticated, isRole('admin'), express.static('public/admin'));

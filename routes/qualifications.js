@@ -296,5 +296,60 @@ router.patch('/api/qualifications/:id/status', guard, async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to update status' });
   }
 });
+// POST /api/qualifications/:id/units — create a new unit, blocked past the stipulated cap
+router.post('/api/qualifications/:id/units', isAuthenticated, isRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, credits } = req.body;
+
+    const qual = await pool.query(`SELECT stipulated_units FROM qualifications WHERE qualification_id = $1`, [id]);
+    if (!qual.rows.length) return res.status(404).json({ success: false, message: 'Qualification not found' });
+
+    const cap = qual.rows[0].stipulated_units;
+    const existing = await pool.query(`SELECT COUNT(*) FROM units WHERE qualification_id = $1`, [id]);
+    const currentCount = parseInt(existing.rows[0].count, 10);
+
+    if (cap != null && currentCount >= cap) {
+      return res.status(400).json({
+        success: false,
+        message: `This qualification is capped at ${cap} unit standard(s). Edit the qualification's unit count first if you need to add more.`
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO units (qualification_id, unit_number, title, description, credits)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [id, currentCount + 1, title, description || null, credits || null]
+    );
+    res.json({ success: true, unitId: result.rows[0].id });
+  } catch (err) {
+    console.error('POST /api/qualifications/:id/units error:', err);
+    res.status(500).json({ success: false, message: 'Failed to create unit' });
+  }
+});
+
+// PATCH /api/qualifications/:id/unit-cap — the "edit" escape hatch, raises/lowers the cap
+router.patch('/api/qualifications/:id/unit-cap', isAuthenticated, isRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stipulated_units } = req.body;
+
+    const existing = await pool.query(`SELECT COUNT(*) FROM units WHERE qualification_id = $1`, [id]);
+    const currentCount = parseInt(existing.rows[0].count, 10);
+
+    if (stipulated_units < currentCount) {
+      return res.status(400).json({
+        success: false,
+        message: `Can't set the cap below ${currentCount} — that's how many unit standards already exist for this qualification.`
+      });
+    }
+
+    await pool.query(`UPDATE qualifications SET stipulated_units = $1 WHERE qualification_id = $2`, [stipulated_units, id]);
+    res.json({ success: true, message: 'Unit cap updated' });
+  } catch (err) {
+    console.error('PATCH /api/qualifications/:id/unit-cap error:', err);
+    res.status(500).json({ success: false, message: 'Failed to update unit cap' });
+  }
+});
 
 module.exports = router;

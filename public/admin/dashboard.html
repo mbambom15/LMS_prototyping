@@ -49,6 +49,37 @@
         #add-user.visible .pw-hint {
             display: flex;
         }
+
+        /* Upload status banner + per-file spinner */
+        #upload-status-banner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .upload-spinner {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: 2px solid rgba(24, 95, 165, 0.25);
+            border-top-color: #185fa5;
+            animation: upload-spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes upload-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .file-status-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
     </style>
 </head>
 
@@ -423,19 +454,33 @@
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Unit / module</label>
-                                <select id="upload-unit-select">
+                                <!-- FIX: this onchange was missing entirely, so currentUploadUnitId
+                                     never got set and every upload silently bailed out. -->
+                                <select id="upload-unit-select" onchange="onUploadUnitChange()">
                                     <option value="">Select a qualification first</option>
                                 </select>
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Learning outcomes / description</label>
-                            <textarea id="desc-input" oninput="updatePreview()"
-                                placeholder="Describe what learners will achieve in this unit…">Learners will understand core networking concepts, hardware setup, and basic troubleshooting procedures for workplace IT environments.</textarea>
+                            <!-- FIX: oninput="updatePreview()" removed — that function no longer
+                                 exists (it belonged to the old hardcoded preview stub), and every
+                                 keystroke was throwing "updatePreview is not defined" in console. -->
+                            <textarea id="desc-input"
+                                placeholder="Describe what learners will achieve in this unit…"></textarea>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Upload files</label>
-                            <div class="drop-zone" onclick="document.getElementById('file-input').click()">
+                            <label class="form-label">Materials for this unit</label>
+                            <div id="existing-materials-list">
+                                <div style="padding:10px;color:var(--text-tertiary);font-size:12px">Select a
+                                    qualification and unit to see its materials.</div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Upload new files</label>
+                            <div class="drop-zone" id="drop-zone"
+                                onclick="document.getElementById('file-input').click()">
                                 <div class="drop-icon">
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#185fa5"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -450,8 +495,22 @@
                             <input type="file" id="file-input" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,.mp4"
                                 style="display:none" onchange="handleFiles(this.files)">
                         </div>
+                        <div id="upload-status-banner" style="display:none"></div>
                         <div class="file-list" id="file-list"></div>
-                        <button class="btn btn-blue" style="margin-top:16px">Save &amp; publish material</button>
+                        <div id="upload-actions" style="display:none;margin-top:12px;gap:8px;align-items:center">
+                            <button type="button" class="btn btn-blue" id="submit-upload-btn"
+                                onclick="submitMaterialUpload()">Upload files</button>
+                            <button type="button" class="btn" onclick="clearStagedFiles()">Clear</button>
+                        </div>
+                        
+                        <!-- NEW: overall status banner shown while any file in the batch is uploading -->
+                        <div id="upload-status-banner" style="display:none"></div>
+                        <div class="file-list" id="file-list"></div>
+                        <div id="upload-actions" style="display:none;margin-top:12px;gap:8px;align-items:center">
+                            <button type="button" class="btn btn-blue" id="submit-upload-btn"
+                                onclick="submitMaterialUpload()">Upload files</button>
+                            <button type="button" class="btn" onclick="clearStagedFiles()">Clear</button>
+                        </div>
                     </div>
 
                     <!-- ── REMOVE ── -->
@@ -470,37 +529,6 @@
                         <button class="btn btn-red" onclick="handleRemoveQualPanel()">Confirm remove</button>
                         <div id="qual-msg-remove"
                             style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px;">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- LEARNER PREVIEW PANEL (unchanged from original) -->
-                <div class="panel" id="preview-panel" style="display:none">
-                    <div class="panel-header">
-                        <span class="panel-title">Learner preview</span>
-                        <span class="panel-sub">This is exactly how learners will see this qualification</span>
-                    </div>
-                    <div class="preview-card">
-                        <div class="preview-banner">
-                            <div class="preview-qual-title" id="prev-title">IT Support — NQF 4</div>
-                            <div class="preview-qual-sub" id="prev-seta">MICT SETA &nbsp;·&nbsp; 12 months</div>
-                            <div class="preview-meta">
-                                <div class="preview-meta-item"><span>—</span>Enrolled</div>
-                                <div class="preview-meta-item"><span>—</span>Units</div>
-                                <div class="preview-meta-item"><span id="prev-file-count">0</span>Materials</div>
-                            </div>
-                        </div>
-                        <div class="preview-body">
-                            <div class="preview-section-title">Current unit</div>
-                            <div class="unit-row" style="margin-bottom:14px">
-                                <div class="unit-num" id="prev-unit-num">1</div>
-                                <span id="prev-unit-name" style="font-size:13px">Unit 1 — Introduction</span>
-                            </div>
-                            <div class="preview-section-title">Learning outcomes</div>
-                            <div class="preview-desc" id="prev-desc">Select a qualification and unit to preview
-                                outcomes.</div>
-                            <div class="preview-section-title">Material available</div>
-                            <div class="material-grid" id="prev-materials"></div>
                         </div>
                     </div>
                 </div>

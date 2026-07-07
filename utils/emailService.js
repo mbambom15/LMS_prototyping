@@ -67,4 +67,121 @@ async function sendUserDetailsEmail({ to, firstName, password }) {
     });
 }
 
-module.exports = { sendWelcomeEmail, sendUserDetailsEmail };
+/** Format a DATE/TIMESTAMPTZ value as e.g. "06 July 2026", or a fallback string if null */
+function fmtDate(d, fallback = 'Not set') {
+    if (!d) return fallback;
+    return new Date(d).toLocaleDateString('en-ZA', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+/** Add N months to a date and return the resulting Date (used to derive an
+ *  expected end date, since the deals table has no end_date column — the
+ *  only source of truth for duration is qualifications.duration_months). */
+function addMonths(date, months) {
+    if (!date || months == null) return null;
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + Number(months));
+    return d;
+}
+
+/* ══════════════════════════════════════════════════════════
+   DEAL ASSIGNED TO FACILITATOR
+   Sent when an admin assigns/reassigns a facilitator to a deal
+   via PUT /api/deals/:number/facilitator.
+══════════════════════════════════════════════════════════ */
+function dealAssignedHtml({ firstName, sponsor, dealNumber, qualificationTitle, startDate, endDate, learnerCount }) {
+    return `
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;border:1px solid #e5e5e5;border-radius:8px">
+      <h2 style="color:#185fa5;margin-top:0">You've been assigned a new deal</h2>
+      <p>Hi ${firstName},</p>
+      <p>You have been assigned as the facilitator for the following deal on Nkanyezi LMS:</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">
+        <tr>
+          <td style="padding:8px 0;color:#666;width:160px">Deal name</td>
+          <td style="padding:8px 0;font-weight:bold">${sponsor}</td>
+        </tr>
+        <tr style="border-top:1px solid #eee">
+          <td style="padding:8px 0;color:#666">Deal number</td>
+          <td style="padding:8px 0;font-weight:bold">#${dealNumber}</td>
+        </tr>
+        <tr style="border-top:1px solid #eee">
+          <td style="padding:8px 0;color:#666">Qualification</td>
+          <td style="padding:8px 0;font-weight:bold">${qualificationTitle || 'Not set'}</td>
+        </tr>
+        <tr style="border-top:1px solid #eee">
+          <td style="padding:8px 0;color:#666">Start date</td>
+          <td style="padding:8px 0;font-weight:bold">${fmtDate(startDate)}</td>
+        </tr>
+        <tr style="border-top:1px solid #eee">
+          <td style="padding:8px 0;color:#666">Expected end date</td>
+          <td style="padding:8px 0;font-weight:bold">${fmtDate(endDate)}</td>
+        </tr>
+        <tr style="border-top:1px solid #eee">
+          <td style="padding:8px 0;color:#666">Learner count</td>
+          <td style="padding:8px 0;font-weight:bold">${learnerCount ?? 0}</td>
+        </tr>
+      </table>
+      <p style="font-size:13px;color:#666">Log in to Nkanyezi LMS to view learners linked to this deal and manage their progress.</p>
+      <p>— Nkanyezi LMS Team</p>
+    </div>`;
+}
+
+async function sendDealAssignedEmail({ to, firstName, sponsor, dealNumber, qualificationTitle, startDate, durationMonths, learnerCount }) {
+    const endDate = addMonths(startDate, durationMonths);
+    return sendWithRetry({
+        from: FROM_EMAIL,
+        to,
+        subject: `New deal assigned: ${sponsor} (#${dealNumber})`,
+        html: dealAssignedHtml({ firstName, sponsor, dealNumber, qualificationTitle, startDate, endDate, learnerCount }),
+    });
+}
+
+/* ══════════════════════════════════════════════════════════
+   LEARNERS ASSIGNED TO FACILITATOR'S DEAL
+   Sent when an admin links one or more learners to a deal
+   via POST /api/deals/:number/learners, to that deal's
+   facilitator (if one is assigned).
+══════════════════════════════════════════════════════════ */
+function learnersAssignedHtml({ firstName, sponsor, dealNumber, qualificationTitle, learners }) {
+    const rows = learners.map(l => `
+      <tr style="border-top:1px solid #eee">
+        <td style="padding:8px 0">${l.fullName}</td>
+        <td style="padding:8px 0">${l.idNumber || '—'}</td>
+      </tr>`).join('');
+
+    return `
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;border:1px solid #e5e5e5;border-radius:8px">
+      <h2 style="color:#185fa5;margin-top:0">New learner${learners.length === 1 ? '' : 's'} assigned to your deal</h2>
+      <p>Hi ${firstName},</p>
+      <p>${learners.length} learner${learners.length === 1 ? ' has' : 's have'} been linked to your deal:</p>
+      <p style="background:#f1f6fb;padding:10px 14px;border-radius:6px;font-size:14px;margin:12px 0">
+        <strong>${sponsor}</strong> — Deal #${dealNumber}<br>
+        <span style="color:#666">${qualificationTitle || 'No qualification set'}</span>
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">
+        <tr>
+          <td style="padding:8px 0;color:#666;font-weight:bold">Full name</td>
+          <td style="padding:8px 0;color:#666;font-weight:bold">ID number</td>
+        </tr>
+        ${rows}
+      </table>
+      <p style="font-size:13px;color:#666">Log in to Nkanyezi LMS to view these learners' full details and progress.</p>
+      <p>— Nkanyezi LMS Team</p>
+    </div>`;
+}
+
+async function sendLearnersAssignedEmail({ to, firstName, sponsor, dealNumber, qualificationTitle, learners }) {
+    if (!learners || !learners.length) return; // nothing to notify about
+    return sendWithRetry({
+        from: FROM_EMAIL,
+        to,
+        subject: `${learners.length} learner${learners.length === 1 ? '' : 's'} assigned to ${sponsor} (#${dealNumber})`,
+        html: learnersAssignedHtml({ firstName, sponsor, dealNumber, qualificationTitle, learners }),
+    });
+}
+
+module.exports = {
+    sendWelcomeEmail,
+    sendUserDetailsEmail,
+    sendDealAssignedEmail,
+    sendLearnersAssignedEmail,
+};

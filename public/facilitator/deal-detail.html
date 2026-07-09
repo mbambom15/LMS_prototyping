@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deal Detail · Nkanyezi Academy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-wrapper">
+    <div class="top-bar">
+        <div class="logo-area">
+            <span>Nkanyezi Academy</span>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn-outline-sm" onclick="window.location.href='fdashboard.html'">← Back to dashboard</button>
+            <div class="avatar-placeholder" id="facilitator-initials">--</div>
+        </div>
+    </div>
+
+    <main class="main-area" style="max-width: 1100px; margin: 0 auto;">
+
+        <div class="card" id="deal-header-card">
+            <div class="card-body">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <div class="form-label">Deal number <span id="deal-number-label"></span></div>
+                        <div style="font-size:26px; font-weight:650; letter-spacing:-0.3px;" id="deal-name-label">Loading…</div>
+                        <div class="card-sub" id="deal-qualification-label" style="margin-top:6px;"></div>
+                    </div>
+                    <span class="badge" id="deal-status-badge"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Learners on this deal</span>
+                <span class="card-sub" id="learner-count-label"></span>
+            </div>
+            <table class="simple-table">
+                <thead>
+                    <tr>
+                        <th>Learner</th>
+                        <th>Email</th>
+                        <th>Contact</th>
+                        <th>Progress</th>
+                        <th>Expected</th>
+                        <th>Last login</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="learners-rows">
+                    <tr><td colspan="7" class="empty-state">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <footer>Nkanyezi Academy · Facilitator portal</footer>
+</div>
+
+<!-- Learner details modal -->
+<div id="learnerModal" class="modal-overlay">
+    <div class="modal-container" style="width: 560px;">
+        <div class="modal-header">
+            <span>Learner details</span>
+            <button onclick="closeLearnerModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">×</button>
+        </div>
+        <div class="modal-body" id="learnerModalBody">Loading…</div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeLearnerModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance modal -->
+<div id="attendanceModal" class="modal-overlay">
+    <div class="modal-container" style="width: 560px;">
+        <div class="modal-header">
+            <span id="attendanceModalTitle">Attendance history</span>
+            <button onclick="closeAttendanceModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">×</button>
+        </div>
+        <div class="modal-body" style="max-height: 420px; overflow-y: auto;">
+            <table class="simple-table">
+                <thead><tr><th>Date</th><th>Status</th><th>Check-in</th><th>Geo</th></tr></thead>
+                <tbody id="attendanceModalRows">
+                    <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeAttendanceModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script src="deal-detail.js"></script>
+</body>
+</html>

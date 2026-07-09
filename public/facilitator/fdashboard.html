@@ -3,173 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-    <link href="style.css" >
+    <title>Facilitator Portal · Nkanyezi Academy</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    div class="app-wrapper">
-  <div class="top-bar">
-    <div class="logo-area">
-      <span>Nkanyezi Academy</span>
-    </div>
-    <div style="display: flex; gap: 12px; align-items: center;">
-      <button class="btn-outline-sm" onclick="logoutAction()">Logout</button>
-      <div class="avatar-placeholder">SB</div>
-    </div>
-  </div>
-
-  <div class="dashboard-layout">
-    <aside class="sidebar">
-      <div class="nav-section">Insights</div>
-      <div class="nav-item active" data-page="dashboard"><span>Dashboard</span></div>
-      <div class="nav-section">Learners</div>
-      <div class="nav-item" data-page="learners"><span>All learners</span><span class="nav-badge">18</span></div>
-      <div class="nav-item" data-page="risk"><span>At risk</span><span class="nav-badge">3</span></div>
-      <div class="nav-section">Tracking</div>
-      <div class="nav-item" data-page="attendance"><span>Attendance report</span></div>
-      <div class="nav-item" data-page="geo"><span>Geo tracker</span></div>
-      <div class="nav-section">Engagement</div>
-      <div class="nav-item" data-page="feedback"><span>Auto‑feedback</span></div>
-      <div class="nav-item" data-page="reports"><span>SETA reports</span></div>
-    </aside>
-
-    <main class="main-area">
-      <!-- DASHBOARD -->
-      <div id="page-dashboard" class="page active">
-        <div class="stat-grid">
-          <div class="stat"><div class="stat-label">Total learners</div><div class="stat-val">18</div><div class="stat-sub">IT Support NQF 4</div></div>
-          <div class="stat"><div class="stat-label">On track</div><div class="stat-val">12</div><div class="stat-sub up">67% of cohort</div></div>
-          <div class="stat"><div class="stat-label">Behind schedule</div><div class="stat-val">3</div><div class="stat-sub warn">Intervention needed</div></div>
-          <div class="stat"><div class="stat-label">At risk</div><div class="stat-val">3</div><div class="stat-sub down">Immediate action</div></div>
-          <div class="stat"><div class="stat-label">Avg attendance</div><div class="stat-val">84%</div><div class="stat-sub warn">target 80%</div></div>
+<div class="app-wrapper">
+    <div class="top-bar">
+        <div class="logo-area">
+            <span>Nkanyezi Academy</span>
         </div>
-
-        <div class="grid-2cols">
-          <div>
-            <div class="card">
-              <div class="card-header"><span class="card-title">Risk indicators — cohort highlights</span><button class="btn btn-sm" onclick="switchToPage('risk')">View all at-risk</button></div>
-              <table class="simple-table">
-                <thead><tr><th>Learner</th><th>Progress</th><th>Attend.</th><th>Risk flags</th></tr></thead>
-                <tbody>
-                  <tr><td><span class="avatar-init" style="margin-right: 8px;">AS</span> Ayanda Sithole</td><td><div class="progress-bar-bg"><div class="progress-fill fill-red" style="width: 28%"></div></div>28%</td><td style="color:#b91c1c;">62%</td><td><span class="risk-flag">absent</span> <span class="risk-flag">inactive</span></td></tr>
-                  <tr><td><span class="avatar-init" style="margin-right: 8px;">KD</span> Keabetswe Dube</td><td><div class="progress-bar-bg"><div class="progress-fill fill-amber" style="width: 45%"></div></div>45%</td><td style="color:#b45309;">77%</td><td><span class="risk-flag">behind</span> <span class="risk-flag">overdue PoE</span></td></tr>
-                  <tr><td><span class="avatar-init" style="margin-right: 8px;">NM</span> Nomsa Mthembu</td><td><div class="progress-bar-bg"><div class="progress-fill fill-amber" style="width: 52%"></div></div>52%</td><td style="color:#b45309;">81%</td><td><span class="risk-flag">inactive 5d</span></td></tr>
-                  <tr><td><span class="avatar-init" style="margin-right: 8px;">TN</span> Thabo Nkosi</td><td><div class="progress-bar-bg"><div class="progress-fill fill-green" style="width: 82%"></div></div>82%</td><td style="color:#0f6e3f;">91%</td><td><span class="badge badge-green">on track</span></td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="card"><div class="card-header"><span class="card-title">Upcoming sessions</span></div>
-              <table class="simple-table"><thead><tr><th>Session</th><th>Date</th><th>Unit</th></tr></thead>
-              <tbody><tr><td>Formative assessment</td><td>Mon 14 Apr</td><td><span class="badge badge-blue">Unit 4</span></td></tr>
-              <tr><td>Mentor review</td><td>Wed 16 Apr</td><td><span class="badge badge-gray">All units</span></td></tr>
-              <tr><td>SETA compliance submission</td><td>Fri 18 Apr</td><td><span class="badge badge-amber">Admin</span></td></tr>
-            </tbody></table></div>
-          </div>
-          <div>
-            <div class="card"><div class="card-header"><span class="card-title">Quick actions</span></div>
-              <div style="padding: 14px 18px; display: flex; flex-direction: column; gap: 10px;">
-                <button class="btn btn-primary" onclick="switchToPage('attendance')">Generate attendance report</button>
-                <button class="btn btn-green" onclick="switchToPage('feedback')">Auto‑feedback for at‑risk</button>
-                <button class="btn" onclick="switchToPage('risk')">At‑risk learners</button>
-              </div>
-            </div>
-            <div class="card"><div class="card-header"><span class="card-title">Alerts & reminders</span></div>
-              <div style="padding: 6px 0;"><div style="padding: 12px 16px; border-bottom: 1px solid #efefeb;"><div style="font-weight:500;">Ayanda Sithole</div><div style="font-size:12px; color:#b91c1c;">9 days without login · attendance 62%</div></div>
-              <div style="padding: 12px 16px; border-bottom: 1px solid #efefeb;"><div style="font-weight:500;">Keabetswe Dube</div><div style="font-size:12px; color:#b45309;">3 PoE tasks overdue</div></div>
-              <div style="padding: 12px 16px;"><div style="font-weight:500;">SETA report due</div><div style="font-size:12px; color:#5b5b58;">Deadline in 2 days</div></div></div>
-            </div>
-          </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn-outline-sm" onclick="logoutAction()">Logout</button>
+            <div class="avatar-placeholder" id="facilitator-initials">--</div>
         </div>
-      </div>
+    </div>
 
-      <!-- AT RISK PAGE (simplified) -->
-      <div id="page-risk" class="page"><div class="card"><div class="card-header"><span class="card-title">At‑risk learners — detailed view</span></div>
-        <div style="padding: 12px 20px 20px;">
-          <div class="card" style="margin-bottom: 16px;"><div class="card-header"><div><span class="avatar-init" style="margin-right: 10px;">AS</span><strong>Ayanda Sithole</strong> <span class="badge badge-red">Critical</span></div></div>
-          <div class="card-body"><div class="grid-3cols" style="gap: 12px;"><div><div class="form-label">Attendance</div><div style="font-size: 24px; font-weight:600;color:#b91c1c;">62%</div><div class="progress-bar-bg"><div class="progress-fill fill-red" style="width:62%"></div></div></div>
-          <div><div class="form-label">Progress</div><div style="font-size:24px;font-weight:600;color:#b91c1c;">28%</div><div class="progress-bar-bg"><div class="progress-fill fill-red" style="width:28%"></div></div></div>
-          <div><div class="form-label">Last login</div><div style="font-size:20px;font-weight:500;">9 days ago</div></div></div>
-          <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" onclick="openFeedbackModal('Ayanda Sithole')">Send feedback</button></div></div></div>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="nav-section">Facilitator</div>
+            <div class="nav-item active" data-page="dashboard"><span>Dashboard</span></div>
+            <div class="nav-item" data-page="deals"><span>Deal management</span></div>
+            <div class="nav-item" data-page="risk"><span>Learners at risk</span><span class="nav-badge" id="risk-count-badge"></span></div>
+            <div class="nav-item" data-page="attendance"><span>Attendance records</span></div>
+        </aside>
 
-          <div class="card"><div class="card-header"><span class="avatar-init" style="margin-right: 10px;">KD</span><strong>Keabetswe Dube</strong> <span class="badge badge-amber">Moderate risk</span></div>
-          <div class="card-body"><div class="grid-3cols"><div>Attendance 77%<div class="progress-bar-bg"><div class="progress-fill fill-amber" style="width:77%"></div></div></div><div>Progress 45%<div class="progress-bar-bg"><div class="progress-fill fill-amber" style="width:45%"></div></div></div><div>Last login 4d</div></div>
-          <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="openFeedbackModal('Keabetswe Dube')">Send feedback</button></div></div>
+        <main class="main-area">
 
-          <div class="card"><div class="card-header"><span class="avatar-init" style="margin-right: 10px;">NM</span><strong>Nomsa Mthembu</strong> <span class="badge badge-amber">Moderate risk</span></div>
-          <div class="card-body"><div class="grid-3cols"><div>Attendance 81%</div><div>Progress 52%</div><div>Last login 5d</div></div>
-          <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="openFeedbackModal('Nomsa Mthembu')">Send feedback</button></div></div>
-        </div></div></div>
+            <!-- DASHBOARD -->
+            <div id="page-dashboard" class="page active">
+                <div class="stat-grid" id="dashboard-stats">
+                    <div class="stat"><div class="stat-label">Total learners</div><div class="stat-val">–</div></div>
+                    <div class="stat"><div class="stat-label">On track</div><div class="stat-val">–</div></div>
+                    <div class="stat"><div class="stat-label">Behind schedule</div><div class="stat-val">–</div></div>
+                    <div class="stat"><div class="stat-label">At risk</div><div class="stat-val">–</div></div>
+                    <div class="stat"><div class="stat-label">Avg attendance</div><div class="stat-val">–</div></div>
+                </div>
 
-      <!-- ATTENDANCE REPORT -->
-      <div id="page-attendance" class="page">
-        <div class="grid-2cols"><div><div class="card"><div class="card-header">Generate attendance report</div><div class="card-body">
-          <label class="form-label">Deal / ID number</label><input type="text" id="deal-input" placeholder="e.g. 9802015432089">
-          <div style="display:flex; gap:12px; margin:12px 0;"><div><label class="form-label">From</label><input type="date" id="att-from"></div><div><label class="form-label">To</label><input type="date" id="att-to"></div></div>
-          <button class="btn btn-primary" onclick="generateAttReport()">Generate report</button>
-          <div id="att-toast" class="toast" style="display:none; margin-top:12px;">✓ Geo‑verified report ready</div>
-        </div></div>
-        <div id="att-report" style="display: none;"><div class="card"><div class="card-header"><span>Attendance preview · Ayanda Sithole</span><div class="geo-pill">geo‑verified</div></div>
-        <table class="simple-table"><thead><tr><th>Date</th><th>Status</th><th>Location</th></tr></thead>
-        <tbody><tr><td>1 Apr</td><td><span class="badge badge-green">Present</span></td><td>-25.7479,28.2293</td></tr>
-        <tr><td>4 Apr</td><td><span class="badge badge-red">Absent</span></td><td>—</td></tr>
-        <tr><td>7 Apr</td><td><span class="badge badge-amber">Late</span></td><td>verified</td></tr>
-        <tr><td>8-10 Apr</td><td><span class="badge badge-red">Absent</span></td><td>—</td></tr>
-        </tbody></table></div></div></div>
-        <div><div class="card"><div class="card-header"><span>Geo tracker · today</span><div class="geo-pill">Live</div></div>
-          <table class="simple-table"><thead><tr><th>Learner</th><th>Check‑in</th><th>Status</th></tr></thead>
-          <tbody><tr><td>Thabo Nkosi</td><td>08:02</td><td><span class="badge badge-green">Present</span></td></tr>
-          <tr><td>Lerato Molefe</td><td>07:55</td><td><span class="badge badge-green">Present</span></td></tr>
-          <tr><td>Ayanda Sithole</td><td>—</td><td><span class="badge badge-red">Absent</span></td></tr>
-          <tr><td>Keabetswe Dube</td><td>09:47</td><td><span class="badge badge-amber">Late</span></td></tr>
-          </tbody></table>
-        </div></div></div>
-      </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">At-risk highlights</span>
+                        <button class="btn btn-sm" onclick="switchToPage('risk')">View all</button>
+                    </div>
+                    <table class="simple-table">
+                        <thead><tr><th>Learner</th><th>Deal</th><th>Attendance</th><th>Progress</th><th>Risk</th></tr></thead>
+                        <tbody id="dashboard-risk-rows">
+                            <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-      <!-- GEO TRACKER standalone -->
-      <div id="page-geo" class="page"><div class="card"><div class="card-header"><span>Geo‑verified attendance</span><div class="geo-pill">live coordinates</div></div>
-      <table class="simple-table"><thead><tr><th>Learner</th><th>Deal number</th><th>Check‑in</th><th>Distance</th><th>Status</th></tr></thead>
-      <tbody><tr><td>Thabo Nkosi</td><td>9901015432011</td><td>08:02</td><td>0.02 km</td><td><span class="badge badge-green">verified</span></td></tr>
-      <tr><td>Lerato Molefe</td><td>0012025678034</td><td>07:55</td><td>0.03 km</td><td><span class="badge badge-green">verified</span></td></tr>
-      <tr><td>Ayanda Sithole</td><td>9802015432089</td><td>—</td><td>—</td><td><span class="badge badge-red">absent</span></td></tr>
-      <tr><td>Keabetswe Dube</td><td>0001104678012</td><td>09:47</td><td>0.04 km</td><td><span class="badge badge-amber">late</span></td></tr>
-      </tbody></table></div></div>
+            <!-- DEAL MANAGEMENT -->
+            <div id="page-deals" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Your deals</span>
+                        <span class="card-sub" id="deals-count-label"></span>
+                    </div>
+                    <div class="filter-bar">
+                        <input type="text" id="deals-search" placeholder="Search by deal number, sponsor or qualification…">
+                        <select id="deals-status-filter">
+                            <option value="all">All statuses</option>
+                        </select>
+                    </div>
+                    <table class="simple-table">
+                        <thead>
+                            <tr>
+                                <th>Deal number</th>
+                                <th>Deal name</th>
+                                <th>Qualification</th>
+                                <th>Status</th>
+                                <th>Learners</th>
+                                <th>Start date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deals-rows">
+                            <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-      <!-- AUTO FEEDBACK page -->
-      <div id="page-feedback" class="page"><div class="card"><div class="card-header"><span class="card-title">Automated feedback · at‑risk learners</span><button class="btn btn-sm" onclick="generateAllFeedback()">Generate all feedback</button></div>
-      <div id="feedback-list">
-        <div class="fb-card"><div class="fb-learner"><span class="avatar-init">AS</span><div><strong>Ayanda Sithole</strong><div class="card-sub">Attendance 62% · Progress 28% · inactive 9d</div></div><span class="badge badge-red">critical</span></div>
-        <div class="fb-text" id="fb-text-1">Dear Ayanda, your attendance (62%) and progress (28%) are below requirements. Please contact me urgently for an intervention session. – Sipho Botha, Facilitator</div>
-        <div class="fb-actions"><button class="btn btn-green btn-sm" onclick="sendFeedback(1)">Send feedback</button><button class="btn btn-sm" onclick="editFeedback(1)">Edit</button><div id="fb-sent-1" class="toast" style="display:none;">Sent</div></div></div>
+            <!-- AT RISK -->
+            <div id="page-risk" class="page">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Learners at risk — detailed view</span></div>
+                    <div id="risk-list" style="padding: 12px 20px 20px;">
+                        <div class="empty-state">Loading…</div>
+                    </div>
+                </div>
+            </div>
 
-        <div class="fb-card"><div class="fb-learner"><span class="avatar-init">KD</span><div><strong>Keabetswe Dube</strong><div class="card-sub">Progress 45% · 3 PoE overdue</div></div><span class="badge badge-amber">moderate</span></div>
-        <div class="fb-text" id="fb-text-2">Dear Keabetswe, you have outstanding PoE tasks and progress is behind. Please prioritise submissions and reach out for support.</div>
-        <div class="fb-actions"><button class="btn btn-green btn-sm" onclick="sendFeedback(2)">Send feedback</button><button class="btn btn-sm" onclick="editFeedback(2)">Edit</button><div id="fb-sent-2" class="toast" style="display:none;">Sent</div></div></div>
+            <!-- ATTENDANCE RECORDS -->
+            <div id="page-attendance" class="page">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Attendance records</span></div>
+                    <div class="filter-bar">
+                        <select id="att-deal-filter">
+                            <option value="">All deals</option>
+                        </select>
+                        <div><label class="form-label">From</label><input type="date" id="att-from"></div>
+                        <div><label class="form-label">To</label><input type="date" id="att-to"></div>
+                        <button class="btn btn-primary" onclick="loadAttendance()">Filter</button>
+                    </div>
+                    <table class="simple-table">
+                        <thead><tr><th>Learner</th><th>Deal</th><th>Date</th><th>Status</th><th>Check-in</th><th>Geo</th></tr></thead>
+                        <tbody id="attendance-rows">
+                            <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-        <div class="fb-card"><div class="fb-learner"><span class="avatar-init">NM</span><div><strong>Nomsa Mthembu</strong><div class="card-sub">Progress 52% · last login 5d</div></div><span class="badge badge-amber">moderate</span></div>
-        <div class="fb-text" id="fb-text-3">Dear Nomsa, please log in and catch up on Unit 3. I’m here to assist if you face any challenges.</div>
-        <div class="fb-actions"><button class="btn btn-green btn-sm" onclick="sendFeedback(3)">Send feedback</button><button class="btn btn-sm" onclick="editFeedback(3)">Edit</button><div id="fb-sent-3" class="toast" style="display:none;">Sent</div></div></div>
-      </div></div></div>
-
-      <!-- LEARNERS LIST -->
-      <div id="page-learners" class="page"><div class="card"><div class="card-header"><span>All learners · IT Support NQF 4</span><span class="card-sub">18 enrolled</span></div>
-      <table class="simple-table"><thead><tr><th>Learner</th><th>Deal number</th><th>Progress</th><th>Attendance</th><th>Status</th></tr></thead>
-      <tbody><tr><td>Thabo Nkosi</td><td>9901015432011</td><td>82%</td><td>91%</td><td><span class="badge badge-green">on track</span></td></tr>
-      <tr><td>Lerato Molefe</td><td>0012025678034</td><td>74%</td><td>88%</td><td><span class="badge badge-green">on track</span></td></tr>
-      <tr><td>Ayanda Sithole</td><td>9802015432089</td><td>28%</td><td>62%</td><td><span class="badge badge-red">critical</span></td></tr>
-      <tr><td>Keabetswe Dube</td><td>0001104678012</td><td>45%</td><td>77%</td><td><span class="badge badge-amber">at risk</span></td></tr>
-      <tr><td>Nomsa Mthembu</td><td>9911225432076</td><td>52%</td><td>81%</td><td><span class="badge badge-amber">at risk</span></td></tr>
-      </tbody></table><div class="card-body"><div class="card-sub">13 additional learners are on track with progress >70%</div></div></div></div>
-
-      <div id="page-reports" class="page"><div class="card"><div class="card-body">SETA reports will be available for export (XML + CSV). Coming soon.</div></div></div>
-    </main>
-  </div>
-  <footer>Nkanyezi Academy · Facilitator dashboard · IT Support NQF 4</footer>
+        </main>
+    </div>
+    <footer>Nkanyezi Academy · Facilitator portal</footer>
 </div>
 
-<!-- MODAL for feedback -->
-<div id="feedbackModal" class="modal-overlay"><div class="modal-container"><div class="modal-header"><span>Compose feedback</span><button onclick="closeFbModal()" style="background:none; border:none; font-size:20px;">×</button></div>
-<div class="modal-body"><label class="form-label">Message</label><textarea id="modalFeedbackMsg" rows="4" placeholder="Write your personalised feedback..."></textarea></div>
-<div class="modal-footer"><button class="btn" onclick="closeFbModal()">Cancel</button><button class="btn btn-primary" onclick="closeFbModal()">Send notification</button></div></div></div>
-
+<script src="dashboard.js"></script>
 </body>
 </html>

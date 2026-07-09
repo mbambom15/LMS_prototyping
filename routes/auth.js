@@ -74,9 +74,8 @@ function redirectToDashboard(role, res) {
       return res.redirect('/admin/dashboard.html');
     case 'learner':
       return res.redirect('/learner/ldashboard.html');
-    // future roles:
-    // case 'facilitator': return res.redirect('/facilitator/dashboard.html');
-    // case 'learner': return res.redirect('/learner/dashboard.html');
+    case 'facilitator':
+      return res.redirect('/facilitator/fdashboard.html');
     default:
       return res.status(403).send('No dashboard defined for your role.');
   }

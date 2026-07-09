@@ -1,0 +1,160 @@
+const params = new URLSearchParams(window.location.search);
+const learnerId = params.get('id');
+const dealNumber = params.get('deal');
+
+document.getElementById('back-to-deal-btn').onclick = goBackToDeal;
+document.getElementById('back-to-deal-btn-2').onclick = goBackToDeal;
+
+function goBackToDeal() {
+    window.location.href = dealNumber ? `deal-detail.html?deal=${dealNumber}` : 'fdashboard.html';
+}
+
+async function apiGet(url) {
+    const res = await fetch(url, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    return res.json();
+}
+
+function initials(name, surname) {
+    return `${(name || '?')[0] || ''}${(surname || '?')[0] || ''}`.toUpperCase();
+}
+
+function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function fmtDateTime(d) {
+    if (!d) return 'Never';
+    return new Date(d).toLocaleString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function statusBadgeClass(status) {
+    const s = (status || '').toLowerCase();
+    if (s.includes('active') || s.includes('approved')) return 'badge-green';
+    if (s.includes('pending') || s.includes('review')) return 'badge-amber';
+    if (s.includes('rejected') || s.includes('cancel') || s.includes('terminat')) return 'badge-red';
+    return 'badge-gray';
+}
+
+function field(label, value) {
+    return `<div class="detail-item"><div class="detail-item-label">${label}</div><div class="detail-item-value">${value}</div></div>`;
+}
+
+if (!learnerId) {
+    document.getElementById('ld-name').textContent = 'No learner specified';
+} else {
+    loadLearner();
+}
+
+async function loadLearner() {
+    try {
+        const resp = await apiGet(`/api/facilitator/learners/${learnerId}`);
+        const l = resp.learner;
+
+        document.getElementById('ld-avatar').textContent = initials(l.name, l.surname);
+        document.getElementById('ld-name').textContent = `${l.name} ${l.surname}`;
+        document.getElementById('ld-deal-sub').textContent =
+            `${l.sponsor || 'Deal'} #${l.deal_number}${l.qualification ? ' · ' + l.qualification : ''}`;
+
+        const statusBadge = document.getElementById('ld-status-badge');
+        statusBadge.textContent = l.status || 'unknown';
+        statusBadge.className = `badge ${statusBadgeClass(l.status)}`;
+
+        const flags = [];
+        if (l.flag_low_attendance) flags.push('low attendance');
+        if (l.flag_behind_schedule) flags.push('behind schedule');
+        if (l.flag_no_login) flags.push('inactive');
+        if (l.flag_poe_overdue) flags.push('PoE overdue');
+
+        const fields = document.getElementById('ld-fields');
+        fields.innerHTML = [
+            field('Display name', `${l.name} ${l.surname}`),
+            field('Email', l.email || '—'),
+            field('Contact number', l.phone_number || '—'),
+            field('Alternative contact', l.alternative_number || '—'),
+            field('SA ID', l.sa_id || '—'),
+            field('Gender', l.gender || '—'),
+            field('Qualification', l.qualification ? `${l.qualification}${l.nqf_level ? ' (' + l.nqf_level + ')' : ''}` : '—'),
+            field('Deal', `#${l.deal_number} — ${l.sponsor || '—'}`),
+            field('Enrolment start', fmtDate(l.enrolment_start)),
+            field('Expected end date', fmtDate(l.expected_end_date)),
+            field('Percentage done', l.progress_pct != null ? Math.round(l.progress_pct) + '%' : '—'),
+            field('Last logged in', fmtDateTime(l.last_login)),
+            field('Learnership status', `<span class="badge ${statusBadgeClass(l.status)}">${l.status || '—'}</span>`),
+            field('Employment status', l.employer_name ? `Employed — ${l.employer_name}` : 'Unemployed'),
+            field('Risk level', l.risk_level ? `<span class="badge ${l.risk_level === 'high' ? 'badge-red' : 'badge-amber'}">${l.risk_level}</span>` : '<span class="badge badge-green">none</span>'),
+            field('Flags', flags.length ? flags.map(f => `<span class="risk-flag">${f}</span>`).join(' ') : '—'),
+        ].join('');
+    } catch (err) {
+        console.error('loadLearner error:', err);
+        document.getElementById('ld-name').textContent = 'Learner not found';
+        document.getElementById('ld-fields').innerHTML =
+            `<div class="empty-state">Couldn't load this learner.</div>`;
+    }
+}
+
+// ── Attendance ────────────────────────────────────────────────
+let attendanceCache = null;
+
+async function loadAttendanceSummary() {
+    try {
+        const resp = await apiGet(`/api/facilitator/learners/${learnerId}/attendance`);
+        attendanceCache = resp;
+        const s = resp.summary || {};
+        document.getElementById('att-present').textContent = s.days_present ?? '0';
+        document.getElementById('att-absent').textContent = s.days_absent ?? '0';
+        document.getElementById('att-rate').textContent = s.rate_pct != null ? s.rate_pct + '%' : '—';
+    } catch (err) {
+        console.error('loadAttendanceSummary error:', err);
+    }
+}
+
+async function openAttendance() {
+    const modal = document.getElementById('attendanceModal');
+    const tbody = document.getElementById('attendanceModalRows');
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">Loading…</td></tr>`;
+    modal.classList.add('show');
+
+    try {
+        if (!attendanceCache) attendanceCache = await apiGet(`/api/facilitator/learners/${learnerId}/attendance`);
+        const records = attendanceCache.records || [];
+
+        if (!records.length) {
+            tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No attendance records yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = records.map(r => `
+            <tr>
+                <td>${fmtDate(r.attendance_date)}</td>
+                <td><span class="badge ${statusBadgeClass(r.status)}">${r.status}</span></td>
+                <td>${r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                <td>${r.geo_verified ? '<span class="geo-pill">verified</span>' : '—'}</td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('openAttendance error:', err);
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-state">Couldn't load attendance.</td></tr>`;
+    }
+}
+
+function closeAttendanceModal() {
+    document.getElementById('attendanceModal').classList.remove('show');
+}
+
+window.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('attendanceModal')) closeAttendanceModal();
+});
+
+if (learnerId) loadAttendanceSummary();
+
+(async function initFacilitatorAvatar() {
+    try {
+        const resp = await apiGet('/api/facilitator/me');
+        const el = document.getElementById('facilitator-initials');
+        if (el && resp.facilitator) el.textContent = initials(resp.facilitator.name, resp.facilitator.surname);
+    } catch (err) {
+        // Non-critical
+    }
+})();

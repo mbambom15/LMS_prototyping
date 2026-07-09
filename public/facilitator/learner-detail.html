@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learner Detail · Nkanyezi Academy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-wrapper">
+    <div class="top-bar">
+        <div class="logo-area">
+            <span>Nkanyezi Academy</span>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn-outline-sm" id="back-to-deal-btn">← Back to deal</button>
+            <div class="avatar-placeholder" id="facilitator-initials">--</div>
+        </div>
+    </div>
+
+    <main class="main-area" style="max-width: 900px; margin: 0 auto;">
+
+        <div class="card">
+            <div class="card-body" style="display:flex; align-items:center; gap:16px;">
+                <span class="avatar-init" style="width:52px; height:52px; font-size:18px;" id="ld-avatar">--</span>
+                <div style="flex:1;">
+                    <div style="font-size:22px; font-weight:650; letter-spacing:-0.3px;" id="ld-name">Loading…</div>
+                    <div class="card-sub" id="ld-deal-sub"></div>
+                </div>
+                <span class="badge" id="ld-status-badge"></span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><span class="card-title">Learner details</span></div>
+            <div class="detail-grid" id="ld-fields">
+                <div class="empty-state">Loading…</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Attendance</span>
+                <button class="btn btn-sm" onclick="openAttendance()">View attendance history</button>
+            </div>
+            <div class="card-body">
+                <div class="grid-3cols" id="ld-attendance-summary">
+                    <div><div class="form-label">Days present</div><div class="stat-val" style="font-size:22px;" id="att-present">–</div></div>
+                    <div><div class="form-label">Days absent</div><div class="stat-val" style="font-size:22px;" id="att-absent">–</div></div>
+                    <div><div class="form-label">Attendance rate</div><div class="stat-val" style="font-size:22px;" id="att-rate">–</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-row">
+            <button class="btn btn-primary" onclick="openAttendance()">View attendance</button>
+            <button class="btn btn-green" onclick="alert('Feedback composer coming soon.')">Send feedback</button>
+            <button class="btn" id="back-to-deal-btn-2">Back to deal</button>
+        </div>
+
+    </main>
+    <footer>Nkanyezi Academy · Facilitator portal</footer>
+</div>
+
+<!-- Attendance modal -->
+<div id="attendanceModal" class="modal-overlay">
+    <div class="modal-container" style="width: 560px;">
+        <div class="modal-header">
+            <span id="attendanceModalTitle">Attendance history</span>
+            <button onclick="closeAttendanceModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">×</button>
+        </div>
+        <div class="modal-body" style="max-height: 420px; overflow-y: auto;">
+            <table class="simple-table">
+                <thead><tr><th>Date</th><th>Status</th><th>Check-in</th><th>Geo</th></tr></thead>
+                <tbody id="attendanceModalRows">
+                    <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeAttendanceModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script src="learner-detail.js"></script>
+</body>
+</html>

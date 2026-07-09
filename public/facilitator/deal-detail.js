@@ -79,7 +79,7 @@ async function loadDeal() {
                     <td>${fmtDateTime(l.last_login)}</td>
                     <td style="white-space: nowrap;">
                         <button class="btn btn-sm" onclick="openAttendanceModal('${l.user_id}', '${l.name} ${l.surname}')">Attendance</button>
-                        <button class="btn btn-primary btn-sm" onclick="openLearnerModal('${l.user_id}')">View details</button>
+                        <button class="btn btn-primary btn-sm" onclick="window.location.href='learner-detail.html?id=${l.user_id}&deal=${dealNumber}'">View details</button>
                     </td>
                 </tr>
             `;
@@ -90,61 +90,6 @@ async function loadDeal() {
         document.getElementById('learners-rows').innerHTML =
             `<tr><td colspan="7" class="empty-state">Couldn't load this deal.</td></tr>`;
     }
-}
-
-// ── Learner details modal ────────────────────────────────────
-async function openLearnerModal(learnerId) {
-    const modal = document.getElementById('learnerModal');
-    const body = document.getElementById('learnerModalBody');
-    body.innerHTML = 'Loading…';
-    modal.classList.add('show');
-
-    try {
-        const resp = await apiGet(`/api/facilitator/learners/${learnerId}`);
-        const l = resp.learner;
-        body.innerHTML = `
-            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
-                <span class="avatar-init" style="width:44px;height:44px;font-size:16px;">${initials(l.name, l.surname)}</span>
-                <div>
-                    <div style="font-weight:600; font-size:16px;">${l.name} ${l.surname}</div>
-                    <div class="card-sub">${l.email || '—'}</div>
-                </div>
-            </div>
-            <div class="grid-3cols" style="gap:14px; margin-bottom:14px;">
-                <div><div class="form-label">Contact</div>${l.phone_number || '—'}</div>
-                <div><div class="form-label">Alt. contact</div>${l.alternative_number || '—'}</div>
-                <div><div class="form-label">Status</div><span class="badge ${statusBadgeClass(l.status)}">${l.status || '—'}</span></div>
-            </div>
-            <div class="grid-3cols" style="gap:14px; margin-bottom:14px;">
-                <div><div class="form-label">Qualification</div>${l.qualification || '—'}</div>
-                <div><div class="form-label">Enrolled</div>${fmtDate(l.enrolment_start)}</div>
-                <div><div class="form-label">Expected end</div>${fmtDate(l.expected_end_date)}</div>
-            </div>
-            <div class="grid-3cols" style="gap:14px; margin-bottom:14px;">
-                <div><div class="form-label">Progress</div>${l.progress_pct != null ? Math.round(l.progress_pct) + '%' : '—'}</div>
-                <div><div class="form-label">Last login</div>${fmtDateTime(l.last_login)}</div>
-                <div><div class="form-label">Risk level</div>${l.risk_level ? `<span class="badge ${l.risk_level === 'high' ? 'badge-red' : l.risk_level === 'medium' ? 'badge-amber' : 'badge-gray'}">${l.risk_level}</span>` : '<span class="badge badge-green">none</span>'}</div>
-            </div>
-            ${l.employer_name ? `<div style="margin-bottom:14px;"><div class="form-label">Host employer</div>${l.employer_name}${l.workplace_address ? ' — ' + l.workplace_address : ''}</div>` : ''}
-            ${(l.flag_low_attendance || l.flag_behind_schedule || l.flag_no_login || l.flag_poe_overdue) ? `
-                <div>
-                    <div class="form-label">Flags</div>
-                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                        ${l.flag_low_attendance ? '<span class="risk-flag">low attendance</span>' : ''}
-                        ${l.flag_behind_schedule ? '<span class="risk-flag">behind schedule</span>' : ''}
-                        ${l.flag_no_login ? '<span class="risk-flag">inactive</span>' : ''}
-                        ${l.flag_poe_overdue ? '<span class="risk-flag">PoE overdue</span>' : ''}
-                    </div>
-                </div>` : ''}
-        `;
-    } catch (err) {
-        console.error('openLearnerModal error:', err);
-        body.innerHTML = `<div class="empty-state">Couldn't load learner details.</div>`;
-    }
-}
-
-function closeLearnerModal() {
-    document.getElementById('learnerModal').classList.remove('show');
 }
 
 // ── Attendance modal ─────────────────────────────────────────
@@ -183,7 +128,6 @@ function closeAttendanceModal() {
 }
 
 window.addEventListener('click', (e) => {
-    if (e.target === document.getElementById('learnerModal')) closeLearnerModal();
     if (e.target === document.getElementById('attendanceModal')) closeAttendanceModal();
 });
 

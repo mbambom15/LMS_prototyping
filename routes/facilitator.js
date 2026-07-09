@@ -303,6 +303,17 @@ router.get('/api/facilitator/learners/:learnerId/attendance', async (req, res) =
             return res.status(404).json({ success: false, message: 'Learner not found or not in one of your deals' });
         }
 
+        const summaryResult = await pool.query(
+            `SELECT
+                COUNT(*) FILTER (WHERE status IN ('present','late')) AS days_present,
+                COUNT(*) FILTER (WHERE status = 'absent')             AS days_absent,
+                COUNT(*)                                               AS total_days,
+                ROUND(100.0 * COUNT(*) FILTER (WHERE status IN ('present','late')) / NULLIF(COUNT(*),0), 0) AS rate_pct
+             FROM attendance_records
+             WHERE learner_id = $1`,
+            [learnerId]
+        );
+
         const result = await pool.query(
             `SELECT attendance_date, status, check_in_time, check_out_time, geo_verified, geo_distance_km
              FROM attendance_records
@@ -312,7 +323,7 @@ router.get('/api/facilitator/learners/:learnerId/attendance', async (req, res) =
             [learnerId]
         );
 
-        res.json({ success: true, records: result.rows });
+        res.json({ success: true, records: result.rows, summary: summaryResult.rows[0] });
     } catch (err) {
         console.error('GET /api/facilitator/learners/:learnerId/attendance error:', err);
         res.status(500).json({ success: false, message: 'Failed to fetch learner attendance' });

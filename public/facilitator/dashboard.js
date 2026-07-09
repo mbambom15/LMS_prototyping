@@ -17,6 +17,7 @@ function switchToPage(pageId) {
         loadedPages.add(pageId);
         if (pageId === 'dashboard') loadDashboard();
         if (pageId === 'deals') loadDeals();
+        if (pageId === 'grading') loadGrading();
         if (pageId === 'risk') loadRiskLearners();
         if (pageId === 'attendance') { populateDealFilter(); loadAttendance(); }
     }
@@ -61,6 +62,18 @@ async function apiGet(url) {
     const res = await fetch(url, { credentials: 'same-origin' });
     if (!res.ok) throw new Error(`Request failed: ${res.status}`);
     return res.json();
+}
+
+async function apiPost(url, body) {
+    const res = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `Request failed: ${res.status}`);
+    return data;
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -175,6 +188,126 @@ async function fetchDeals() {
     }
 }
 
+// ── Grading ───────────────────────────────────────────────────
+let gradingSearchTimer = null;
+let gradingFiltersReady = false;
+
+async function loadGrading() {
+    if (!gradingFiltersReady) {
+        gradingFiltersReady = true;
+
+        try {
+            const dealsResp = await apiGet('/api/facilitator/deals');
+            const dealSelect = document.getElementById('grading-deal-filter');
+            (dealsResp.deals || []).forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d.deal_number;
+                opt.textContent = `${d.deal_number} — ${d.sponsor || 'Untitled'}`;
+                dealSelect.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('grading deal filter error:', err);
+        }
+
+        document.getElementById('grading-search').addEventListener('input', () => {
+            clearTimeout(gradingSearchTimer);
+            gradingSearchTimer = setTimeout(fetchSubmissions, 300);
+        });
+        document.getElementById('grading-status-filter').addEventListener('change', fetchSubmissions);
+        document.getElementById('grading-deal-filter').addEventListener('change', fetchSubmissions);
+    }
+
+    fetchSubmissions();
+}
+
+async function fetchSubmissions() {
+    const search = document.getElementById('grading-search').value.trim();
+    const status = document.getElementById('grading-status-filter').value;
+    const dealNumber = document.getElementById('grading-deal-filter').value;
+    const container = document.getElementById('grading-list');
+    container.innerHTML = `<div class="empty-state">Loading…</div>`;
+
+    try {
+        const params = new URLSearchParams();
+        if (search) params.set('search', search);
+        if (status && status !== 'all') params.set('status', status);
+        if (dealNumber) params.set('deal_number', dealNumber);
+
+        const resp = await apiGet(`/api/facilitator/submissions?${params.toString()}`);
+        const submissions = resp.submissions || [];
+
+        document.getElementById('grading-count-label').textContent =
+            `${submissions.length} submission${submissions.length === 1 ? '' : 's'}`;
+        const badge = document.getElementById('grading-count-badge');
+        badge.textContent = submissions.filter(s => s.status === 'pending').length || '';
+
+        if (!submissions.length) {
+            container.innerHTML = `<div class="empty-state">No submissions match your filters.</div>`;
+            return;
+        }
+
+        container.innerHTML = submissions.map(s => renderSubmissionCard(s)).join('');
+    } catch (err) {
+        console.error('fetchSubmissions error:', err);
+        container.innerHTML = `<div class="empty-state">Couldn't load submissions.</div>`;
+    }
+}
+
+function renderSubmissionCard(s) {
+    const isGraded = s.status === 'graded';
+    return `
+        <div class="fb-card" id="submission-${s.id}">
+            <div class="fb-learner">
+                <span class="avatar-init">${initials(s.name, s.surname)}</span>
+                <div style="flex:1;">
+                    <strong>${s.name} ${s.surname}</strong>
+                    <div class="card-sub">${s.assessment_title} · Unit ${s.unit_number}: ${s.unit_title} · Deal ${s.deal_number}</div>
+                </div>
+                <span class="badge ${isGraded ? 'badge-green' : 'badge-amber'}">${isGraded ? 'graded' : 'pending'}</span>
+            </div>
+            <div class="card-sub" style="margin-bottom:10px;">
+                Submitted ${fmtDate(s.submitted_at)} · Max score ${s.max_score} · Pass mark ${s.pass_mark}
+                ${s.file_url ? ` · <a href="${s.file_url}" target="_blank" rel="noopener">View submission file</a>` : ''}
+            </div>
+            <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+                <div style="width:100px;">
+                    <label class="form-label">Score</label>
+                    <input type="number" id="score-${s.id}" min="0" max="${s.max_score}" value="${s.score ?? ''}">
+                </div>
+                <div style="flex:1; min-width:220px;">
+                    <label class="form-label">Feedback</label>
+                    <input type="text" id="feedback-${s.id}" value="${s.feedback ? s.feedback.replace(/"/g, '&quot;') : ''}" placeholder="Optional feedback for the learner">
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="submitGrade('${s.id}')">${isGraded ? 'Update grade' : 'Save grade'}</button>
+            </div>
+            <div id="grade-toast-${s.id}" class="toast" style="display:none;">Saved</div>
+        </div>
+    `;
+}
+
+async function submitGrade(submissionId) {
+    const scoreInput = document.getElementById(`score-${submissionId}`);
+    const feedbackInput = document.getElementById(`feedback-${submissionId}`);
+    const score = scoreInput.value;
+    const feedback = feedbackInput.value;
+
+    if (score === '' || Number.isNaN(Number(score))) {
+        alert('Please enter a numeric score.');
+        return;
+    }
+
+    try {
+        await apiPost(`/api/facilitator/submissions/${submissionId}/grade`, { score: Number(score), feedback });
+        const toast = document.getElementById(`grade-toast-${submissionId}`);
+        toast.style.display = 'inline-block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        fetchSubmissions();
+    } catch (err) {
+        console.error('submitGrade error:', err);
+        alert(err.message || "Couldn't save grade.");
+    }
+}
+
 // ── At-risk learners ─────────────────────────────────────────
 async function loadRiskLearners() {
     const container = document.getElementById('risk-list');
@@ -232,11 +365,44 @@ async function populateDealFilter() {
     } catch (err) {
         console.error('populateDealFilter error:', err);
     }
+
+    const periodSelect = document.getElementById('att-period');
+    if (periodSelect && !periodSelect.dataset.wired) {
+        periodSelect.dataset.wired = '1';
+        periodSelect.addEventListener('change', () => {
+            applyPeriodPreset(periodSelect.value);
+            loadAttendance();
+        });
+    }
+}
+
+// Fills the From/To inputs based on a "This week" / "This month" preset.
+// "Custom range" leaves whatever the facilitator has already picked.
+function applyPeriodPreset(period) {
+    const fmt = dt => dt.toISOString().slice(0, 10);
+    const today = new Date();
+    let from, to;
+
+    if (period === 'week') {
+        const day = today.getDay(); // 0 = Sunday
+        const diffToMonday = day === 0 ? -6 : 1 - day;
+        from = new Date(today);
+        from.setDate(today.getDate() + diffToMonday);
+        to = today;
+    } else if (period === 'month') {
+        from = new Date(today.getFullYear(), today.getMonth(), 1);
+        to = today;
+    } else {
+        return; // custom — leave inputs as-is
+    }
+
+    document.getElementById('att-from').value = fmt(from);
+    document.getElementById('att-to').value = fmt(to);
 }
 
 async function loadAttendance() {
     const tbody = document.getElementById('attendance-rows');
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Loading…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Loading…</td></tr>`;
 
     try {
         const dealNumber = document.getElementById('att-deal-filter').value;
@@ -252,7 +418,7 @@ async function loadAttendance() {
         const records = resp.records || [];
 
         if (!records.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No attendance records found.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No attendance records found.</td></tr>`;
             return;
         }
 
@@ -263,13 +429,34 @@ async function loadAttendance() {
                 <td>${fmtDate(r.attendance_date)}</td>
                 <td><span class="badge ${statusBadgeClass(r.status)}">${r.status}</span></td>
                 <td>${r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                <td>${r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                 <td>${r.geo_verified ? '<span class="geo-pill">verified</span>' : '—'}</td>
             </tr>
         `).join('');
     } catch (err) {
         console.error('loadAttendance error:', err);
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Couldn't load attendance records.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Couldn't load attendance records.</td></tr>`;
     }
+}
+
+// Triggers a same-origin GET so the browser handles the PDF download using
+// the existing session cookie — no need to fetch()/blob it manually.
+function downloadAttendancePdf() {
+    const dealNumber = document.getElementById('att-deal-filter').value;
+    const from = document.getElementById('att-from').value;
+    const to = document.getElementById('att-to').value;
+
+    if (!from || !to) {
+        alert('Please select a From and To date (or choose a Week/Month preset) before generating a PDF.');
+        return;
+    }
+
+    const params = new URLSearchParams();
+    if (dealNumber) params.set('deal_number', dealNumber);
+    params.set('from', from);
+    params.set('to', to);
+
+    window.location.href = `/api/facilitator/attendance/report.pdf?${params.toString()}`;
 }
 
 // ── Init ─────────────────────────────────────────────────────

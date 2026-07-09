@@ -23,6 +23,7 @@
             <div class="nav-section">Facilitator</div>
             <div class="nav-item active" data-page="dashboard"><span>Dashboard</span></div>
             <div class="nav-item" data-page="deals"><span>Deal management</span></div>
+            <div class="nav-item" data-page="grading"><span>Grading</span><span class="nav-badge" id="grading-count-badge"></span></div>
             <div class="nav-item" data-page="risk"><span>Learners at risk</span><span class="nav-badge" id="risk-count-badge"></span></div>
             <div class="nav-item" data-page="attendance"><span>Attendance records</span></div>
         </aside>
@@ -84,6 +85,30 @@
                 </div>
             </div>
 
+            <!-- GRADING -->
+            <div id="page-grading" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Submissions awaiting grading</span>
+                        <span class="card-sub" id="grading-count-label"></span>
+                    </div>
+                    <div class="filter-bar">
+                        <input type="text" id="grading-search" placeholder="Search by learner or assessment…">
+                        <select id="grading-status-filter">
+                            <option value="pending">Pending</option>
+                            <option value="all">All statuses</option>
+                            <option value="graded">Graded</option>
+                        </select>
+                        <select id="grading-deal-filter">
+                            <option value="">All deals</option>
+                        </select>
+                    </div>
+                    <div id="grading-list" style="padding: 4px 20px 20px;">
+                        <div class="empty-state">Loading…</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- AT RISK -->
             <div id="page-risk" class="page">
                 <div class="card">
@@ -102,14 +127,23 @@
                         <select id="att-deal-filter">
                             <option value="">All deals</option>
                         </select>
+                        <div>
+                            <label class="form-label">Period</label>
+                            <select id="att-period">
+                                <option value="custom">Custom range</option>
+                                <option value="week">This week</option>
+                                <option value="month">This month</option>
+                            </select>
+                        </div>
                         <div><label class="form-label">From</label><input type="date" id="att-from"></div>
                         <div><label class="form-label">To</label><input type="date" id="att-to"></div>
                         <button class="btn btn-primary" onclick="loadAttendance()">Filter</button>
+                        <button class="btn btn-green" onclick="downloadAttendancePdf()">Download PDF</button>
                     </div>
                     <table class="simple-table">
-                        <thead><tr><th>Learner</th><th>Deal</th><th>Date</th><th>Status</th><th>Check-in</th><th>Geo</th></tr></thead>
+                        <thead><tr><th>Learner</th><th>Deal</th><th>Date</th><th>Status</th><th>Sign in</th><th>Sign out</th><th>Geo</th></tr></thead>
                         <tbody id="attendance-rows">
-                            <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+                            <tr><td colspan="7" class="empty-state">Loading…</td></tr>
                         </tbody>
                     </table>
                 </div>

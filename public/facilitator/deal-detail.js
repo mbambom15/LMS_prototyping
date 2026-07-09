@@ -31,9 +31,17 @@ function statusBadgeClass(status) {
 
 function progressColor(actual, expected) {
     if (actual == null || expected == null) return '';
-    if (actual >= expected) return 'up';
-    if (actual >= expected - 15) return 'warn';
-    return 'down';
+    const gap = expected - actual;
+    if (gap <= 0) return 'up';    // on pace or ahead
+    if (gap <= 5) return 'warn';  // behind — watch
+    return 'down';                // more than 5pts behind — at risk
+}
+
+function riskBadgeFor(l) {
+    if (l.never_attended) return '<span class="badge badge-red">No attendance</span>';
+    if (l.risk_status === 'at-risk') return '<span class="badge badge-red">At risk</span>';
+    if (l.risk_status === 'watch') return '<span class="badge badge-amber">Watch</span>';
+    return '<span class="badge badge-green">On track</span>';
 }
 
 if (!dealNumber) {
@@ -61,14 +69,14 @@ async function loadDeal() {
 
         const tbody = document.getElementById('learners-rows');
         if (!learners.length) {
-            tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No learners assigned to this deal yet.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No learners assigned to this deal yet.</td></tr>`;
             return;
         }
 
         tbody.innerHTML = learners.map(l => {
             const actual = l.progress_pct != null ? Math.round(l.progress_pct) : null;
             const expected = l.expected_pct;
-            const colorClass = progressColor(actual, expected);
+            const colorClass = l.never_attended ? 'down' : progressColor(actual, expected);
             return `
                 <tr>
                     <td><span class="avatar-init" style="margin-right: 8px;">${initials(l.name, l.surname)}</span>${l.name} ${l.surname}</td>
@@ -77,6 +85,7 @@ async function loadDeal() {
                     <td class="${colorClass}">${actual != null ? actual + '%' : '—'}</td>
                     <td>${expected != null ? expected + '%' : '—'}</td>
                     <td>${fmtDateTime(l.last_login)}</td>
+                    <td>${riskBadgeFor(l)}</td>
                     <td style="white-space: nowrap;">
                         <button class="btn btn-sm" onclick="openAttendanceModal('${l.user_id}', '${l.name} ${l.surname}')">Attendance</button>
                         <button class="btn btn-primary btn-sm" onclick="window.location.href='learner-detail.html?id=${l.user_id}&deal=${dealNumber}'">View details</button>

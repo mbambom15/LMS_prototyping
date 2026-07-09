@@ -66,6 +66,14 @@ async function loadLearner() {
         if (l.flag_behind_schedule) flags.push('behind schedule');
         if (l.flag_no_login) flags.push('inactive');
         if (l.flag_poe_overdue) flags.push('PoE overdue');
+        if (l.never_attended) flags.push('never signed attendance');
+
+        function riskBadge() {
+            if (l.never_attended) return '<span class="badge badge-red">At risk — no attendance</span>';
+            if (l.risk_status === 'at-risk') return '<span class="badge badge-red">At risk</span>';
+            if (l.risk_status === 'watch') return '<span class="badge badge-amber">Watch</span>';
+            return '<span class="badge badge-green">On track</span>';
+        }
 
         const fieldList = [
             field('Display name', `${l.name} ${l.surname}`),
@@ -79,10 +87,11 @@ async function loadLearner() {
             field('Enrolment start', fmtDate(l.enrolment_start)),
             field('Expected end date', fmtDate(l.expected_end_date)),
             field('Percentage done', l.progress_pct != null ? Math.round(l.progress_pct) + '%' : '—'),
+            field('Expected percentage', l.expected_pct != null ? l.expected_pct + '%' : '—'),
             field('Last logged in', fmtDateTime(l.last_login)),
             field('Learnership status', `<span class="badge ${statusBadgeClass(l.status)}">${l.status || '—'}</span>`),
             field('Employment status', l.employer_name ? `Employed — ${l.employer_name}` : 'Unemployed'),
-            field('Risk level', l.risk_level ? `<span class="badge ${l.risk_level === 'high' ? 'badge-red' : 'badge-amber'}">${l.risk_level}</span>` : '<span class="badge badge-green">none</span>'),
+            field('Risk level', riskBadge()),
             field('Flags', flags.length ? flags.map(f => `<span class="risk-flag">${f}</span>`).join(' ') : '—'),
         ];
 

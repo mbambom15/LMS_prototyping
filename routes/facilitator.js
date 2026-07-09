@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
 const { isAuthenticated, isRole } = require('../middleware/auth');
+const PDFDocument = require('pdfkit');
 
 // Every route below is scoped to the logged-in facilitator
 router.use('/api/facilitator', isAuthenticated, isRole('facilitator'));
@@ -210,28 +211,57 @@ router.get('/api/facilitator/deals/:dealNumber', async (req, res) => {
                 u.last_login,
                 u.status,
                 e.progress_pct,
-                e.start_date AS enrolment_start
+                e.start_date AS enrolment_start,
+                COALESCE(ac.attendance_count, 0) AS attendance_count
              FROM learners l
              JOIN users u ON u.user_id = l.learner_id
              LEFT JOIN enrolments e
                 ON e.learner_id = l.learner_id
                AND e.qualification_id = $2
+             LEFT JOIN (
+                SELECT learner_id, COUNT(*) AS attendance_count
+                FROM attendance_records
+                GROUP BY learner_id
+             ) ac ON ac.learner_id = l.learner_id
              WHERE l.deal_number = $1
              ORDER BY u.name, u.surname`,
             [dealNumber, deal.qualification_id]
         );
 
         // Expected progress = how far through the qualification's duration the
-        // learner should be by now, based on their enrolment start date.
+        // cohort should be by now, based on the DEAL's start date (uniform
+        // across the roster rather than each learner's individual enrolment date).
         const durationDays = (deal.duration_months || 0) * 30;
         const learners = learnersResult.rows.map(l => {
             let expectedPct = null;
-            const startDate = l.enrolment_start || deal.start_date;
+            const startDate = deal.start_date;
             if (startDate && durationDays > 0) {
                 const daysElapsed = (Date.now() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24);
                 expectedPct = Math.max(0, Math.min(100, Math.round((daysElapsed / durationDays) * 100)));
             }
-            return { ...l, expected_pct: expectedPct };
+
+            const neverAttended = Number(l.attendance_count) === 0;
+            const actualPct = l.progress_pct != null ? Math.round(l.progress_pct) : null;
+
+            // Risk status:
+            //  - never signed attendance at all -> flagged regardless of progress
+            //  - any gap behind expected -> at least "watch" (amber)
+            //  - gap of more than 5 points -> "at risk", needs immediate intervention
+            let riskStatus = 'on-track';
+            if (neverAttended) {
+                riskStatus = 'at-risk';
+            } else if (actualPct != null && expectedPct != null) {
+                const gap = expectedPct - actualPct;
+                if (gap > 5) riskStatus = 'at-risk';
+                else if (gap > 0) riskStatus = 'watch';
+            }
+
+            return {
+                ...l,
+                expected_pct: expectedPct,
+                never_attended: neverAttended,
+                risk_status: riskStatus,
+            };
         });
 
         res.json({ success: true, deal, learners });
@@ -256,18 +286,24 @@ router.get('/api/facilitator/learners/:learnerId', async (req, res) => {
             `SELECT
                 u.user_id, u.name, u.surname, u.email, u.phone_number,
                 u.alternative_number, u.sa_id, u.gender, u.status, u.last_login,
-                d.deal_number, d.sponsor,
+                d.deal_number, d.sponsor, d.start_date AS deal_start_date,
                 q.title AS qualification, q.nqf_level, q.duration_months,
                 e.start_date AS enrolment_start, e.expected_end_date, e.progress_pct,
                 e.employer_name, e.workplace_address,
                 rf.risk_level, rf.attendance_pct AS risk_attendance_pct,
-                rf.flag_low_attendance, rf.flag_behind_schedule, rf.flag_no_login, rf.flag_poe_overdue
+                rf.flag_low_attendance, rf.flag_behind_schedule, rf.flag_no_login, rf.flag_poe_overdue,
+                COALESCE(ac.attendance_count, 0) AS attendance_count
              FROM learners l
              JOIN users u ON u.user_id = l.learner_id
              JOIN deals d ON d.deal_number = l.deal_number
              LEFT JOIN enrolments e ON e.learner_id = l.learner_id AND e.qualification_id = d.qualification_id
              LEFT JOIN qualifications q ON q.qualification_id = d.qualification_id
              LEFT JOIN learner_risk_flags rf ON rf.learner_id = l.learner_id AND rf.resolved_at IS NULL
+             LEFT JOIN (
+                SELECT learner_id, COUNT(*) AS attendance_count
+                FROM attendance_records
+                GROUP BY learner_id
+             ) ac ON ac.learner_id = l.learner_id
              WHERE l.learner_id = $1 AND d.facilitator_id = $2 AND d.is_deleted = FALSE`,
             [learnerId, facilitatorId]
         );
@@ -276,7 +312,32 @@ router.get('/api/facilitator/learners/:learnerId', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Learner not found or not in one of your deals' });
         }
 
-        res.json({ success: true, learner: result.rows[0] });
+        const l = result.rows[0];
+
+        // Same expected-% and risk logic as the deal roster, computed live off
+        // the deal's start date rather than the (potentially stale) risk_flags table.
+        const durationDays = (l.duration_months || 0) * 30;
+        let expectedPct = null;
+        if (l.deal_start_date && durationDays > 0) {
+            const daysElapsed = (Date.now() - new Date(l.deal_start_date).getTime()) / (1000 * 60 * 60 * 24);
+            expectedPct = Math.max(0, Math.min(100, Math.round((daysElapsed / durationDays) * 100)));
+        }
+        const neverAttended = Number(l.attendance_count) === 0;
+        const actualPct = l.progress_pct != null ? Math.round(l.progress_pct) : null;
+
+        let riskStatus = 'on-track';
+        if (neverAttended) {
+            riskStatus = 'at-risk';
+        } else if (actualPct != null && expectedPct != null) {
+            const gap = expectedPct - actualPct;
+            if (gap > 5) riskStatus = 'at-risk';
+            else if (gap > 0) riskStatus = 'watch';
+        }
+
+        res.json({
+            success: true,
+            learner: { ...l, expected_pct: expectedPct, never_attended: neverAttended, risk_status: riskStatus },
+        });
     } catch (err) {
         console.error('GET /api/facilitator/learners/:learnerId error:', err);
         res.status(500).json({ success: false, message: 'Failed to fetch learner detail' });
@@ -373,6 +434,247 @@ router.get('/api/facilitator/attendance', async (req, res) => {
     } catch (err) {
         console.error('GET /api/facilitator/attendance error:', err);
         res.status(500).json({ success: false, message: 'Failed to fetch attendance records' });
+    }
+});
+
+// ── GET /api/facilitator/attendance/report.pdf?deal_number=&from=&to= ─
+// Generates a downloadable PDF attendance report (sign-in / sign-out) for a
+// date range — the front end drives this with week/month presets or a
+// custom range, then hands the two dates straight through here.
+router.get('/api/facilitator/attendance/report.pdf', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { deal_number, from, to } = req.query;
+
+        if (!from || !to) {
+            return res.status(400).json({ success: false, message: 'from and to dates are required' });
+        }
+
+        const conditions = [
+            'd.facilitator_id = $1', 'd.is_deleted = FALSE',
+            'ar.attendance_date >= $2', 'ar.attendance_date <= $3',
+        ];
+        const values = [facilitatorId, from, to];
+        let idx = 4;
+
+        if (deal_number) {
+            conditions.push(`d.deal_number = $${idx++}`);
+            values.push(deal_number);
+        }
+
+        const [recordsResult, facilitatorResult] = await Promise.all([
+            pool.query(
+                `SELECT
+                    u.name, u.surname,
+                    d.deal_number, d.sponsor,
+                    ar.attendance_date, ar.status,
+                    ar.check_in_time, ar.check_out_time,
+                    ar.geo_verified, ar.checkout_geo_verified
+                 FROM attendance_records ar
+                 JOIN learners l ON l.learner_id = ar.learner_id
+                 JOIN users u    ON u.user_id = l.learner_id
+                 JOIN deals d    ON d.deal_number = l.deal_number
+                 WHERE ${conditions.join(' AND ')}
+                 ORDER BY d.deal_number, u.surname, u.name, ar.attendance_date`,
+                values
+            ),
+            pool.query(`SELECT name, surname FROM users WHERE user_id = $1`, [facilitatorId]),
+        ]);
+
+        const rows = recordsResult.rows;
+        const facilitator = facilitatorResult.rows[0] || {};
+
+        const fmtDate = d => new Date(d).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+        const fmtTime = t => t ? new Date(t).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) : '—';
+
+        const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'landscape' });
+        const filename = `attendance-report_${from}_to_${to}${deal_number ? `_deal-${deal_number}` : ''}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        doc.pipe(res);
+
+        const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const cols = [
+            { key: 'learner', label: 'Learner',    width: 150 },
+            { key: 'deal',    label: 'Deal',        width: 140 },
+            { key: 'date',    label: 'Date',        width: 90 },
+            { key: 'status',  label: 'Status',       width: 70 },
+            { key: 'signin',  label: 'Sign in',      width: 90 },
+            { key: 'signout', label: 'Sign out',     width: 90 },
+            { key: 'geo',     label: 'Geo verified', width: 90 },
+        ];
+        const colX = [];
+        let cursor = doc.page.margins.left;
+        cols.forEach(c => { colX.push(cursor); cursor += c.width; });
+
+        function drawHeader(y) {
+            doc.font('Helvetica-Bold').fontSize(9).fillColor('#1e1e1f');
+            cols.forEach((c, i) => doc.text(c.label, colX[i], y, { width: c.width }));
+            doc.font('Helvetica').fillColor('#1f1f1f');
+            doc.moveTo(doc.page.margins.left, y + 14)
+               .lineTo(doc.page.margins.left + pageWidth, y + 14)
+               .strokeColor('#d4d4cf').lineWidth(0.5).stroke();
+        }
+
+        // Report header
+        doc.font('Helvetica-Bold').fontSize(16).fillColor('#171717')
+           .text('Nkanyezi Academy — Attendance Report', doc.page.margins.left, doc.y);
+        doc.moveDown(0.4);
+        doc.font('Helvetica').fontSize(9).fillColor('#5b5b58')
+           .text(`Facilitator: ${facilitator.name || ''} ${facilitator.surname || ''}`)
+           .text(`Period: ${fmtDate(from)} — ${fmtDate(to)}`)
+           .text(deal_number ? `Deal: #${deal_number}` : 'All assigned deals')
+           .text(`Generated: ${new Date().toLocaleString('en-ZA')}`);
+        doc.moveDown(0.8);
+
+        let y = doc.y;
+        drawHeader(y);
+        y += 20;
+
+        if (!rows.length) {
+            doc.fontSize(10).fillColor('#8d8d89').text('No attendance records found for this period.', doc.page.margins.left, y);
+        }
+
+        rows.forEach(r => {
+            if (y > doc.page.height - doc.page.margins.bottom - 30) {
+                doc.addPage();
+                y = doc.page.margins.top;
+                drawHeader(y);
+                y += 20;
+            }
+            doc.fontSize(9).fillColor('#1f1f1f');
+            doc.text(`${r.name} ${r.surname}`, colX[0], y, { width: cols[0].width });
+            doc.text(`#${r.deal_number} ${r.sponsor || ''}`, colX[1], y, { width: cols[1].width });
+            doc.text(fmtDate(r.attendance_date), colX[2], y, { width: cols[2].width });
+            doc.text(r.status, colX[3], y, { width: cols[3].width });
+            doc.text(fmtTime(r.check_in_time), colX[4], y, { width: cols[4].width });
+            doc.text(fmtTime(r.check_out_time), colX[5], y, { width: cols[5].width });
+            doc.text(r.geo_verified ? 'Yes' : 'No', colX[6], y, { width: cols[6].width });
+            y += 16;
+        });
+
+        doc.end();
+    } catch (err) {
+        console.error('GET /api/facilitator/attendance/report.pdf error:', err);
+        res.status(500).json({ success: false, message: 'Failed to generate PDF report' });
+    }
+});
+
+// ── GET /api/facilitator/submissions?status=&deal_number=&search= ─
+// PoE / assessment submissions for the facilitator's learners
+router.get('/api/facilitator/submissions', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { status, deal_number, search } = req.query;
+
+        const conditions = ['d.facilitator_id = $1', 'd.is_deleted = FALSE'];
+        const values = [facilitatorId];
+        let idx = 2;
+
+        if (status && status !== 'all') {
+            conditions.push(`asub.status = $${idx++}`);
+            values.push(status);
+        }
+        if (deal_number) {
+            conditions.push(`d.deal_number = $${idx++}`);
+            values.push(deal_number);
+        }
+        if (search && search.trim()) {
+            conditions.push(`(
+                u.name ILIKE $${idx} OR
+                u.surname ILIKE $${idx} OR
+                a.title ILIKE $${idx}
+            )`);
+            values.push(`%${search.trim()}%`);
+            idx++;
+        }
+
+        const result = await pool.query(
+            `SELECT
+                asub.id,
+                asub.submitted_at,
+                asub.score,
+                asub.feedback,
+                asub.file_url,
+                asub.status,
+                a.id AS assessment_id,
+                a.title AS assessment_title,
+                a.assessment_type,
+                a.max_score,
+                a.pass_mark,
+                un.unit_number,
+                un.title AS unit_title,
+                u.user_id AS learner_id,
+                u.name, u.surname,
+                d.deal_number, d.sponsor
+             FROM assessment_submissions asub
+             JOIN learners l ON l.learner_id = asub.learner_id
+             JOIN users u ON u.user_id = l.learner_id
+             JOIN deals d ON d.deal_number = l.deal_number
+             JOIN assessments a ON a.id = asub.assessment_id
+             JOIN units un ON un.id = a.unit_id
+             WHERE ${conditions.join(' AND ')} AND asub.submitted_at IS NOT NULL
+             ORDER BY asub.submitted_at ASC`,
+            values
+        );
+
+        res.json({ success: true, submissions: result.rows });
+    } catch (err) {
+        console.error('GET /api/facilitator/submissions error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch submissions' });
+    }
+});
+
+// ── POST /api/facilitator/submissions/:id/grade ───────────────────
+router.post('/api/facilitator/submissions/:id/grade', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { id } = req.params;
+        const { score, feedback } = req.body;
+
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRe.test(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid submission ID' });
+        }
+        if (score === undefined || score === null || Number.isNaN(Number(score))) {
+            return res.status(400).json({ success: false, message: 'A numeric score is required' });
+        }
+
+        // Ownership check + fetch max_score for validation
+        const owns = await pool.query(
+            `SELECT asub.id, a.max_score
+             FROM assessment_submissions asub
+             JOIN learners l ON l.learner_id = asub.learner_id
+             JOIN deals d ON d.deal_number = l.deal_number
+             JOIN assessments a ON a.id = asub.assessment_id
+             WHERE asub.id = $1 AND d.facilitator_id = $2 AND d.is_deleted = FALSE`,
+            [id, facilitatorId]
+        );
+        if (!owns.rows.length) {
+            return res.status(404).json({ success: false, message: 'Submission not found or not one of your learners' });
+        }
+        const maxScore = owns.rows[0].max_score;
+        if (maxScore != null && Number(score) > Number(maxScore)) {
+            return res.status(400).json({ success: false, message: `Score cannot exceed ${maxScore}` });
+        }
+
+        await pool.query(
+            `UPDATE assessment_submissions
+             SET score = $1, feedback = $2, graded_by = $3, graded_at = NOW(), status = 'graded'
+             WHERE id = $4`,
+            [score, feedback || null, facilitatorId, id]
+        );
+
+        res.json({ success: true, message: 'Submission graded' });
+    } catch (err) {
+        console.error('POST /api/facilitator/submissions/:id/grade error:', err);
+        if (err.code === '23503') {
+            return res.status(400).json({
+                success: false,
+                message: 'graded_by foreign key still points to assessors — see the schema note for the required ALTER TABLE.',
+            });
+        }
+        res.status(500).json({ success: false, message: 'Failed to grade submission' });
     }
 });
 

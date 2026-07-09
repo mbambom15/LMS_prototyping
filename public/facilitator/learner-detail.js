@@ -38,7 +38,7 @@ function statusBadgeClass(status) {
 }
 
 function field(label, value) {
-    return `<div class="detail-item"><div class="detail-item-label">${label}</div><div class="detail-item-value">${value}</div></div>`;
+    return { label, value };
 }
 
 if (!learnerId) {
@@ -67,8 +67,7 @@ async function loadLearner() {
         if (l.flag_no_login) flags.push('inactive');
         if (l.flag_poe_overdue) flags.push('PoE overdue');
 
-        const fields = document.getElementById('ld-fields');
-        fields.innerHTML = [
+        const fieldList = [
             field('Display name', `${l.name} ${l.surname}`),
             field('Email', l.email || '—'),
             field('Contact number', l.phone_number || '—'),
@@ -85,12 +84,17 @@ async function loadLearner() {
             field('Employment status', l.employer_name ? `Employed — ${l.employer_name}` : 'Unemployed'),
             field('Risk level', l.risk_level ? `<span class="badge ${l.risk_level === 'high' ? 'badge-red' : 'badge-amber'}">${l.risk_level}</span>` : '<span class="badge badge-green">none</span>'),
             field('Flags', flags.length ? flags.map(f => `<span class="risk-flag">${f}</span>`).join(' ') : '—'),
-        ].join('');
+        ];
+
+        document.getElementById('ld-fields-head').innerHTML =
+            fieldList.map(f => `<th>${f.label}</th>`).join('');
+        document.getElementById('ld-fields-body').innerHTML =
+            fieldList.map(f => `<td>${f.value}</td>`).join('');
     } catch (err) {
         console.error('loadLearner error:', err);
         document.getElementById('ld-name').textContent = 'Learner not found';
-        document.getElementById('ld-fields').innerHTML =
-            `<div class="empty-state">Couldn't load this learner.</div>`;
+        document.getElementById('ld-fields-body').innerHTML =
+            `<td class="empty-state">Couldn't load this learner.</td>`;
     }
 }
 

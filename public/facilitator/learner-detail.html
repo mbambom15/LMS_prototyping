@@ -33,8 +33,11 @@
 
         <div class="card">
             <div class="card-header"><span class="card-title">Learner details</span></div>
-            <div class="detail-grid" id="ld-fields">
-                <div class="empty-state">Loading…</div>
+            <div class="detail-scroll">
+                <table class="simple-table detail-table-horizontal">
+                    <thead><tr id="ld-fields-head"></tr></thead>
+                    <tbody><tr id="ld-fields-body"><td class="empty-state">Loading…</td></tr></tbody>
+                </table>
             </div>
         </div>
 

@@ -57,7 +57,7 @@
 
         <div class="action-row">
             <button class="btn btn-primary" onclick="openAttendance()">View attendance</button>
-            <button class="btn btn-green" onclick="alert('Feedback composer coming soon.')">Send feedback</button>
+            <button class="btn btn-green" onclick="openFeedbackModal()">Send feedback</button>
             <button class="btn" id="back-to-deal-btn-2">Back to deal</button>
         </div>
 
@@ -82,6 +82,28 @@
         </div>
         <div class="modal-footer">
             <button class="btn" onclick="closeAttendanceModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Feedback email modal -->
+<div id="feedbackModal" class="modal-overlay">
+    <div class="modal-container" style="width: 580px;">
+        <div class="modal-header">
+            <span>Feedback email</span>
+            <button onclick="closeFeedbackModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">×</button>
+        </div>
+        <div class="modal-body">
+            <div id="feedback-category-badge" style="margin-bottom:14px;"></div>
+            <label class="form-label">Subject</label>
+            <input type="text" id="feedback-subject">
+            <label class="form-label" style="margin-top:12px;">Message</label>
+            <textarea id="feedback-message" rows="11" style="font-family:inherit;"></textarea>
+            <div class="card-sub" style="margin-top:8px;" id="feedback-sending-note"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeFeedbackModal()">Cancel</button>
+            <button class="btn btn-primary" id="feedback-send-btn" onclick="sendFeedbackEmail()">Send email</button>
         </div>
     </div>
 </div>

@@ -179,9 +179,44 @@ async function sendLearnersAssignedEmail({ to, firstName, sponsor, dealNumber, q
     });
 }
 
+/* ══════════════════════════════════════════════════════════
+   LEARNER FEEDBACK EMAIL
+   Sent by a facilitator to a specific learner — auto-generated
+   draft, reviewed/edited by the facilitator, then sent using the
+   FACILITATOR'S OWN @nkanyezionline.co.za address as the real
+   From (the whole domain is verified with Resend, so this isn't
+   a display-name trick — the learner can reply directly to the
+   facilitator).
+══════════════════════════════════════════════════════════ */
+function learnerFeedbackHtml({ message }) {
+    const paragraphs = message
+        .split(/\n\n+/)
+        .map(p => `<p style="margin:0 0 14px">${p.replace(/\n/g, '<br>')}</p>`)
+        .join('');
+
+    return `
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;border:1px solid #e5e5e5;border-radius:8px;color:#171717;font-size:14px;line-height:1.5">
+      ${paragraphs}
+      <p style="font-size:11px;color:#9a9a97;margin-top:20px;border-top:1px solid #eee;padding-top:12px">
+        Sent via Nkanyezi LMS on behalf of your facilitator.
+      </p>
+    </div>`;
+}
+
+async function sendLearnerFeedbackEmail({ to, subject, message, facilitatorName, facilitatorEmail }) {
+    return sendWithRetry({
+        from: `${facilitatorName} <${facilitatorEmail}>`,
+        to,
+        cc: facilitatorEmail,
+        subject,
+        html: learnerFeedbackHtml({ message }),
+    });
+}
+
 module.exports = {
     sendWelcomeEmail,
     sendUserDetailsEmail,
     sendDealAssignedEmail,
     sendLearnersAssignedEmail,
+    sendLearnerFeedbackEmail,
 };

@@ -20,6 +20,7 @@ function switchToPage(pageId) {
         if (pageId === 'grading') loadGrading();
         if (pageId === 'risk') loadRiskLearners();
         if (pageId === 'attendance') { populateDealFilter(); loadAttendance(); }
+        if (pageId === 'feedback-history') loadFeedbackHistory();
     }
 }
 
@@ -427,12 +428,16 @@ async function loadAttendance() {
                 <td>${r.name} ${r.surname}</td>
                 <td>${r.deal_number}</td>
                 <td>${fmtDate(r.attendance_date)}</td>
-                <td><span class="badge ${statusBadgeClass(r.status)}">${r.status}</span></td>
+                <td><span class="badge ${statusBadgeClass(r.status)}">${r.status}${r.is_computed ? '*' : ''}</span></td>
                 <td>${r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                 <td>${r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                 <td>${r.geo_verified ? '<span class="geo-pill">verified</span>' : '—'}</td>
             </tr>
         `).join('');
+
+        if (records.some(r => r.is_computed)) {
+            tbody.innerHTML += `<tr><td colspan="7" class="card-sub" style="padding: 8px 12px;">* not captured on a scheduled day — shown as absent automatically</td></tr>`;
+        }
     } catch (err) {
         console.error('loadAttendance error:', err);
         tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Couldn't load attendance records.</td></tr>`;
@@ -469,6 +474,113 @@ function downloadAttendancePdf() {
     if (fromInput) fromInput.value = fmt(from);
     if (toInput) toInput.value = fmt(d);
 })();
+
+// ── Feedback history ──────────────────────────────────────────
+let fhSearchTimer = null;
+let fhFiltersReady = false;
+let fhCache = [];
+
+async function loadFeedbackHistory() {
+    if (!fhFiltersReady) {
+        fhFiltersReady = true;
+
+        try {
+            const dealsResp = await apiGet('/api/facilitator/deals');
+            const dealSelect = document.getElementById('fh-deal-filter');
+            (dealsResp.deals || []).forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d.deal_number;
+                opt.textContent = `${d.deal_number} — ${d.sponsor || 'Untitled'}`;
+                dealSelect.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('fh deal filter error:', err);
+        }
+
+        document.getElementById('fh-search').addEventListener('input', () => {
+            clearTimeout(fhSearchTimer);
+            fhSearchTimer = setTimeout(fetchFeedbackHistory, 300);
+        });
+        document.getElementById('fh-deal-filter').addEventListener('change', fetchFeedbackHistory);
+    }
+
+    fetchFeedbackHistory();
+}
+
+async function fetchFeedbackHistory() {
+    const search = document.getElementById('fh-search').value.trim();
+    const dealNumber = document.getElementById('fh-deal-filter').value;
+    const tbody = document.getElementById('feedback-history-rows');
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Loading…</td></tr>`;
+
+    try {
+        const params = new URLSearchParams();
+        if (search) params.set('search', search);
+        if (dealNumber) params.set('deal_number', dealNumber);
+
+        const resp = await apiGet(`/api/facilitator/feedback/history?${params.toString()}`);
+        fhCache = resp.history || [];
+
+        document.getElementById('feedback-history-count-label').textContent =
+            `${fhCache.length} message${fhCache.length === 1 ? '' : 's'}`;
+
+        if (!fhCache.length) {
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No feedback sent yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = fhCache.map(f => `
+            <tr>
+                <td>${fmtDateTimeFull(f.sent_at || f.created_at)}</td>
+                <td>${f.sender_name} ${f.sender_surname}</td>
+                <td>${f.receiver_name} ${f.receiver_surname}</td>
+                <td>${f.subject || '—'}${f.is_auto_generated ? ' <span class="badge badge-gray">auto</span>' : ''}</td>
+                <td>${f.deal_number ? `#${f.deal_number}` : '—'}</td>
+                <td><button class="btn btn-sm" onclick="openFhModal('${f.id}')">View</button></td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('fetchFeedbackHistory error:', err);
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Couldn't load feedback history.</td></tr>`;
+    }
+}
+
+function fmtDateTimeFull(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function openFhModal(id) {
+    const f = fhCache.find(x => String(x.id) === String(id));
+    const modal = document.getElementById('fhModal');
+    const body = document.getElementById('fhModalBody');
+    if (!f) {
+        body.innerHTML = `<div class="empty-state">Message not found.</div>`;
+        modal.classList.add('show');
+        return;
+    }
+
+    body.innerHTML = `
+        <div class="grid-2cols" style="grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+            <div><div class="form-label">Sender</div>${f.sender_name} ${f.sender_surname}<br><span class="card-sub">${f.sender_email || ''}</span></div>
+            <div><div class="form-label">Receiver</div>${f.receiver_name} ${f.receiver_surname}<br><span class="card-sub">${f.receiver_email || ''}</span></div>
+        </div>
+        <div style="margin-bottom: 14px;"><div class="form-label">Sent</div>${fmtDateTimeFull(f.sent_at || f.created_at)}</div>
+        <div style="margin-bottom: 14px;"><div class="form-label">Subject</div>${f.subject || '—'}</div>
+        <div><div class="form-label">Message</div>
+            <div class="fb-text" style="white-space: pre-wrap;">${(f.message || '').replace(/</g, '&lt;')}</div>
+        </div>
+    `;
+    modal.classList.add('show');
+}
+
+function closeFhModal() {
+    document.getElementById('fhModal').classList.remove('show');
+}
+
+window.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('fhModal')) closeFhModal();
+});
 
 (async function initFacilitatorAvatar() {
     try {

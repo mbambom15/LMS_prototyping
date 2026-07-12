@@ -156,8 +156,87 @@ function closeAttendanceModal() {
     document.getElementById('attendanceModal').classList.remove('show');
 }
 
+// ── Feedback email ────────────────────────────────────────────
+const RISK_BADGE = {
+    'at-risk': { cls: 'badge-red', label: 'At risk — urgent' },
+    'watch': { cls: 'badge-amber', label: 'Watch — mid case' },
+    'on-track': { cls: 'badge-green', label: 'On track — positive' },
+};
+
+async function openFeedbackModal() {
+    const modal = document.getElementById('feedbackModal');
+    const subjectInput = document.getElementById('feedback-subject');
+    const messageInput = document.getElementById('feedback-message');
+    const badgeEl = document.getElementById('feedback-category-badge');
+    const note = document.getElementById('feedback-sending-note');
+
+    subjectInput.value = '';
+    messageInput.value = 'Generating draft…';
+    badgeEl.innerHTML = '';
+    note.textContent = '';
+    modal.classList.add('show');
+
+    try {
+        const resp = await apiGet(`/api/facilitator/learners/${learnerId}/feedback/draft`);
+        const { draft, context } = resp;
+
+        subjectInput.value = draft.subject;
+        messageInput.value = draft.body;
+
+        const badge = RISK_BADGE[draft.category] || RISK_BADGE['on-track'];
+        badgeEl.innerHTML = `<span class="badge ${badge.cls}">${badge.label}</span>`;
+        note.textContent = context.learnerEmail
+            ? `Will be sent to ${context.learnerEmail} from your own @nkanyezionline.co.za address.`
+            : 'This learner has no email on file — sending will fail until one is added.';
+    } catch (err) {
+        console.error('openFeedbackModal error:', err);
+        messageInput.value = '';
+        note.textContent = "Couldn't generate a draft — you can still write feedback manually below.";
+    }
+}
+
+function closeFeedbackModal() {
+    document.getElementById('feedbackModal').classList.remove('show');
+}
+
+async function sendFeedbackEmail() {
+    const subject = document.getElementById('feedback-subject').value.trim();
+    const message = document.getElementById('feedback-message').value.trim();
+    const sendBtn = document.getElementById('feedback-send-btn');
+
+    if (!subject || !message) {
+        alert('Subject and message are required.');
+        return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Sending…';
+
+    try {
+        const res = await fetch(`/api/facilitator/learners/${learnerId}/feedback/send`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject, message }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Failed to send feedback email');
+
+        alert(data.message);
+        closeFeedbackModal();
+    } catch (err) {
+        console.error('sendFeedbackEmail error:', err);
+        alert(err.message || "Couldn't send feedback email.");
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send email';
+    }
+}
+
 window.addEventListener('click', (e) => {
     if (e.target === document.getElementById('attendanceModal')) closeAttendanceModal();
+    if (e.target === document.getElementById('feedbackModal')) closeFeedbackModal();
+
 });
 
 if (learnerId) loadAttendanceSummary();

@@ -26,6 +26,7 @@
             <div class="nav-item" data-page="grading"><span>Grading</span><span class="nav-badge" id="grading-count-badge"></span></div>
             <div class="nav-item" data-page="risk"><span>Learners at risk</span><span class="nav-badge" id="risk-count-badge"></span></div>
             <div class="nav-item" data-page="attendance"><span>Attendance records</span></div>
+            <div class="nav-item" data-page="feedback-history"><span>Feedback history</span></div>
         </aside>
 
         <main class="main-area">
@@ -149,9 +150,54 @@
                 </div>
             </div>
 
+            <!-- FEEDBACK HISTORY -->
+            <div id="page-feedback-history" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Feedback history</span>
+                        <span class="card-sub" id="feedback-history-count-label"></span>
+                    </div>
+                    <div class="filter-bar">
+                        <input type="text" id="fh-search" placeholder="Search by learner or subject…">
+                        <select id="fh-deal-filter">
+                            <option value="">All deals</option>
+                        </select>
+                    </div>
+                    <table class="simple-table">
+                        <thead>
+                            <tr>
+                                <th>Date &amp; time</th>
+                                <th>Sender</th>
+                                <th>Receiver</th>
+                                <th>Subject</th>
+                                <th>Deal</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="feedback-history-rows">
+                            <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </main>
     </div>
     <footer>Nkanyezi Academy · Facilitator portal</footer>
+</div>
+
+<!-- Feedback history detail modal -->
+<div id="fhModal" class="modal-overlay">
+    <div class="modal-container" style="width: 560px;">
+        <div class="modal-header">
+            <span>Feedback message</span>
+            <button onclick="closeFhModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">×</button>
+        </div>
+        <div class="modal-body" id="fhModalBody">Loading…</div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeFhModal()">Close</button>
+        </div>
+    </div>
 </div>
 
 <script src="dashboard.js"></script>

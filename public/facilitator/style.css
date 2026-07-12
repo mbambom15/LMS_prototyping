@@ -423,6 +423,16 @@ footer {
     gap: 4px;
 }
 
+.fb-text {
+    background: #fbfbf9;
+    padding: 14px 16px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    border-left: 3px solid #3b82f6;
+    margin-top: 6px;
+}
+
 .empty-state {
     text-align: center;
     color: #8d8d89;

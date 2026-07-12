@@ -474,6 +474,16 @@ footer {
     background: #f7f7f5 !important;
 }
 
+.clickable-card {
+    cursor: pointer;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.clickable-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border-color: #d4d4cf;
+}
+
 .modal-overlay {
     display: none;
     position: fixed;

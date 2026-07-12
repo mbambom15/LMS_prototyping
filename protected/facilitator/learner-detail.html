@@ -55,6 +55,19 @@
             </div>
         </div>
 
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Work submitted</span>
+                <span class="card-sub" id="submissions-count-label"></span>
+            </div>
+            <table class="simple-table">
+                <thead><tr><th>Assessment</th><th>Unit</th><th>Submitted</th><th>Score</th><th>Status</th><th></th></tr></thead>
+                <tbody id="submissions-rows">
+                    <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <div class="action-row">
             <button class="btn btn-primary" onclick="openAttendance()">View attendance</button>
             <button class="btn btn-green" onclick="openFeedbackModal()">Send feedback</button>

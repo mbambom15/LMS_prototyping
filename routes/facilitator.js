@@ -936,4 +936,45 @@ router.get('/api/facilitator/feedback/history', async (req, res) => {
     }
 });
 
+// ── GET /api/facilitator/learners/:learnerId/submissions ─────────
+// The work this learner has submitted — for the "Work submitted" section
+// on the learner detail page.
+router.get('/api/facilitator/learners/:learnerId/submissions', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { learnerId } = req.params;
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRe.test(learnerId)) {
+            return res.status(400).json({ success: false, message: 'Invalid learner ID' });
+        }
+
+        const owns = await pool.query(
+            `SELECT 1 FROM learners l JOIN deals d ON d.deal_number = l.deal_number
+             WHERE l.learner_id = $1 AND d.facilitator_id = $2 AND d.is_deleted = FALSE`,
+            [learnerId, facilitatorId]
+        );
+        if (!owns.rows.length) {
+            return res.status(404).json({ success: false, message: 'Learner not found or not in one of your deals' });
+        }
+
+        const result = await pool.query(
+            `SELECT
+                asub.id, asub.submitted_at, asub.score, asub.feedback, asub.file_url, asub.status,
+                a.title AS assessment_title, a.assessment_type, a.max_score, a.pass_mark,
+                un.unit_number, un.title AS unit_title
+             FROM assessment_submissions asub
+             JOIN assessments a ON a.id = asub.assessment_id
+             JOIN units un ON un.id = a.unit_id
+             WHERE asub.learner_id = $1
+             ORDER BY asub.submitted_at DESC NULLS LAST, asub.created_at DESC`,
+            [learnerId]
+        );
+
+        res.json({ success: true, submissions: result.rows });
+    } catch (err) {
+        console.error('GET .../learners/:learnerId/submissions error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch learner submissions' });
+    }
+});
+
 module.exports = router;

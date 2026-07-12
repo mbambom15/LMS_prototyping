@@ -239,7 +239,39 @@ window.addEventListener('click', (e) => {
 
 });
 
+// ── Work submitted ───────────────────────────────────────────
+async function loadSubmissions() {
+    const tbody = document.getElementById('submissions-rows');
+    try {
+        const resp = await apiGet(`/api/facilitator/learners/${learnerId}/submissions`);
+        const submissions = resp.submissions || [];
+
+        document.getElementById('submissions-count-label').textContent =
+            `${submissions.length} submission${submissions.length === 1 ? '' : 's'}`;
+
+        if (!submissions.length) {
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No work submitted yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = submissions.map(s => `
+            <tr>
+                <td>${s.assessment_title}</td>
+                <td>Unit ${s.unit_number}: ${s.unit_title}</td>
+                <td>${s.submitted_at ? fmtDateTime(s.submitted_at) : 'Not submitted'}</td>
+                <td>${s.score != null ? `${s.score} / ${s.max_score}` : '—'}</td>
+                <td><span class="badge ${s.status === 'graded' ? 'badge-green' : s.status === 'pending' ? 'badge-amber' : 'badge-gray'}">${s.status}</span></td>
+                <td>${s.file_url ? `<a href="${s.file_url}" target="_blank" rel="noopener">View file</a>` : '—'}</td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('loadSubmissions error:', err);
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Couldn't load submissions.</td></tr>`;
+    }
+}
+
 if (learnerId) loadAttendanceSummary();
+if (learnerId) loadSubmissions();
 
 (async function initFacilitatorAvatar() {
     try {

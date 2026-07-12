@@ -101,7 +101,7 @@ async function loadDashboard() {
             return;
         }
         tbody.innerHTML = learners.map(l => `
-            <tr>
+            <tr class="clickable-row" onclick="window.location.href='learner-detail.html?id=${l.user_id}&deal=${l.deal_number ?? ''}'">
                 <td><span class="avatar-init" style="margin-right: 8px;">${initials(l.name, l.surname)}</span>${l.name} ${l.surname}</td>
                 <td>${l.deal_number ?? '—'}</td>
                 <td>${l.attendance_pct != null ? l.attendance_pct + '%' : '—'}</td>
@@ -322,7 +322,7 @@ async function loadRiskLearners() {
         }
 
         container.innerHTML = learners.map(l => `
-            <div class="card" style="margin-bottom: 16px;">
+            <div class="card clickable-card" style="margin-bottom: 16px;" onclick="window.location.href='learner-detail.html?id=${l.user_id}&deal=${l.deal_number ?? ''}'">
                 <div class="card-header">
                     <div><span class="avatar-init" style="margin-right: 10px;">${initials(l.name, l.surname)}</span>
                     <strong>${l.name} ${l.surname}</strong> ${riskBadge(l.risk_level)}</div>

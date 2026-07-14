@@ -10,6 +10,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /* ─────────────────────────────────────────
    GET /api/deals
    List all deals with learner count + qual title
+
+   linked_learners excludes terminated learners: the LEFT JOIN to
+   users carries the status check in its ON clause (not WHERE), so
+   deals with zero active learners still appear with a count of 0
+   instead of being dropped from the result set. COUNT(DISTINCT
+   lu.user_id) then naturally ignores the NULLs produced by
+   terminated (or missing) learners.
 ───────────────────────────────────────── */
 router.get('/api/deals', ...guard, async (req, res) => {
   try {
@@ -23,10 +30,11 @@ router.get('/api/deals', ...guard, async (req, res) => {
         q.title          AS qualification_title,
         q.nqf_level,
         q.qualification_id,
-        COUNT(DISTINCT l.learner_id)::int AS linked_learners
+        COUNT(DISTINCT lu.user_id)::int AS linked_learners
       FROM deals d
       LEFT JOIN qualifications q ON q.qualification_id = d.qualification_id
-      LEFT JOIN learners l ON l.deal_number = d.deal_number
+      LEFT JOIN learners l  ON l.deal_number = d.deal_number
+      LEFT JOIN users    lu ON lu.user_id = l.learner_id AND lu.status != 'terminated'
       WHERE d.is_deleted = FALSE
       GROUP BY d.deal_number, q.title, q.nqf_level, q.qualification_id
       ORDER BY d.deal_number DESC
@@ -120,6 +128,13 @@ router.get('/api/facilitators/assignable', ...guard, async (req, res) => {
 /* ─────────────────────────────────────────
    GET /api/deals/:number
    Single deal with linked learner details
+
+   The learner list excludes terminated learners (WHERE u.status !=
+   'terminated'), matching /api/learners/available and the fixed
+   /api/deals count above. deal-detail.js derives stat-linked,
+   stat-avg-prog, stat-active, and stat-risk straight from this
+   array, so filtering here is enough to fix all of those stats —
+   no frontend changes needed.
 ───────────────────────────────────────── */
 router.get('/api/deals/:number', ...guard, async (req, res) => {
   const dealNumber = parseInt(req.params.number, 10);
@@ -162,7 +177,7 @@ router.get('/api/deals/:number', ...guard, async (req, res) => {
       FROM learners l
       JOIN users u ON u.user_id = l.learner_id
       LEFT JOIN enrolments e ON e.learner_id = l.learner_id
-      WHERE l.deal_number = $1
+      WHERE l.deal_number = $1 AND u.status != 'terminated'
       ORDER BY u.surname, u.name
     `, [dealNumber]);
 

@@ -1813,12 +1813,16 @@ function renderLearnerPickerList(learners) {
   list.innerHTML = learners.map(l => {
     const name = [l.name, l.surname].filter(Boolean).join(' ') || '—';
     const checked = selectedLearners.has(l.user_id) ? 'checked' : '';
-    const dealTag = l.current_deal
-      ? `<span class="badge badge-reg" style="font-size:9px">Deal #${l.current_deal}</span>`
+    const taken = !!l.current_deal;
+    const dealTag = taken
+      ? `<span class="badge badge-reg" style="font-size:9px">On Deal #${l.current_deal}</span>`
       : '';
+    // Learners already linked to a deal are shown but locked — one active deal per learner.
+    // Inline style used alongside the .disabled class so this works even if the stylesheet has no rule for it yet.
+    const lockedStyle = taken ? ' style="opacity:.45;cursor:not-allowed;pointer-events:none"' : '';
     return `
-      <label class="ll-learner-item${selectedLearners.has(l.user_id) ? ' selected' : ''}">
-        <input type="checkbox" value="${l.user_id}" ${checked} onchange="toggleLearnerPick(this, '${l.user_id}', '${escHtml(name)}')">
+      <label class="ll-learner-item${selectedLearners.has(l.user_id) ? ' selected' : ''}${taken ? ' disabled' : ''}"${lockedStyle}${taken ? ` title="Already assigned to Deal #${l.current_deal} — unlink there first to move them"` : ''}>
+        <input type="checkbox" value="${l.user_id}" ${checked} ${taken ? 'disabled' : ''} onchange="toggleLearnerPick(this, '${l.user_id}', '${escHtml(name)}')">
         <div class="ll-learner-avatar">${initials(name)}</div>
         <div class="ll-learner-info">
           <div class="ll-learner-name">${escHtml(name)} ${dealTag}</div>

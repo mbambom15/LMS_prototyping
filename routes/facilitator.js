@@ -977,4 +977,169 @@ router.get('/api/facilitator/learners/:learnerId/submissions', async (req, res) 
     }
 });
 
+// ── GET /api/facilitator/learners/:learnerId/compliance-report.pdf ─
+// Full compliance report: identity/qualification, attendance log,
+// feedback history, and unit submissions (0 + not graded if ungraded).
+router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { learnerId } = req.params;
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRe.test(learnerId)) {
+            return res.status(400).json({ success: false, message: 'Invalid learner ID' });
+        }
+
+        const profileResult = await pool.query(
+            `SELECT * FROM learner_compliance_profile WHERE learner_id = $1 AND facilitator_id = $2`,
+            [learnerId, facilitatorId]
+        );
+        if (!profileResult.rows.length) {
+            return res.status(404).json({ success: false, message: 'Learner not found or not in one of your deals' });
+        }
+        const profile = profileResult.rows[0];
+
+        const [attendanceResult, feedbackResult, unitsResult] = await Promise.all([
+            pool.query(`SELECT * FROM learner_attendance_log WHERE learner_id = $1`, [learnerId]),
+            pool.query(`SELECT * FROM learner_feedback_history WHERE learner_id = $1`, [learnerId]),
+            pool.query(`SELECT * FROM learner_unit_grades WHERE learner_id = $1`, [learnerId]),
+        ]);
+        const attendance = attendanceResult.rows;
+        const feedback = feedbackResult.rows;
+        const units = unitsResult.rows;
+
+        const fmtDate = d => d ? new Date(d).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+        const fmtDateTime = d => d ? new Date(d).toLocaleString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+        const fmtTime = t => t ? new Date(t).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) : '—';
+
+        const doc = new PDFDocument({ margin: 40, size: 'A4' });
+        const filename = `compliance-report_${profile.surname}-${profile.name}_${new Date().toISOString().slice(0, 10)}.pdf`
+            .replace(/\s+/g, '-');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        doc.pipe(res);
+
+        const marginLeft = doc.page.margins.left;
+        const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const pageBottom = doc.page.height - doc.page.margins.bottom;
+
+        function ensureSpace(needed) {
+            if (doc.y + needed > pageBottom) doc.addPage();
+        }
+
+        function sectionTitle(text) {
+            ensureSpace(30);
+            doc.moveDown(0.6);
+            doc.font('Helvetica-Bold').fontSize(12).fillColor('#171717').text(text);
+            doc.moveTo(marginLeft, doc.y + 2).lineTo(marginLeft + pageWidth, doc.y + 2)
+               .strokeColor('#d4d4cf').lineWidth(0.5).stroke();
+            doc.moveDown(0.5);
+        }
+
+        function drawTable(cols, rows, rowRenderer, emptyText) {
+            const colX = [];
+            let cursor = marginLeft;
+            cols.forEach(c => { colX.push(cursor); cursor += c.width; });
+
+            function drawHeader() {
+                ensureSpace(20);
+                doc.font('Helvetica-Bold').fontSize(8).fillColor('#1e1e1f');
+                cols.forEach((c, i) => doc.text(c.label, colX[i], doc.y, { width: c.width }));
+                doc.moveDown(0.3);
+                doc.moveTo(marginLeft, doc.y).lineTo(marginLeft + pageWidth, doc.y)
+                   .strokeColor('#e5e5e0').lineWidth(0.5).stroke();
+                doc.moveDown(0.3);
+            }
+
+            drawHeader();
+            if (!rows.length) {
+                doc.font('Helvetica').fontSize(9).fillColor('#8d8d89').text(emptyText);
+                return;
+            }
+
+            doc.font('Helvetica').fontSize(8.5).fillColor('#1f1f1f');
+            rows.forEach(row => {
+                ensureSpace(16);
+                const y = doc.y;
+                const cells = rowRenderer(row);
+                cells.forEach((val, i) => doc.text(val, colX[i], y, { width: cols[i].width }));
+                doc.y = y + 14;
+                if (doc.y > pageBottom - 16) { doc.addPage(); drawHeader(); }
+            });
+        }
+
+        // ── Header ──
+        doc.font('Helvetica-Bold').fontSize(16).fillColor('#171717')
+           .text('Nkanyezi Academy — Learner Compliance Report');
+        doc.moveDown(0.6);
+
+        doc.font('Helvetica-Bold').fontSize(11).fillColor('#171717')
+           .text(`${profile.name} ${profile.surname}`);
+        doc.font('Helvetica').fontSize(9).fillColor('#5b5b58')
+           .text(`ID number: ${profile.id_number || '—'}`)
+           .text(`Email: ${profile.email || '—'}`)
+           .text(`Qualification: ${profile.qualification_title || '—'} (${profile.nqf_level || '—'})`)
+           .text(`SETA: ${profile.seta || '—'}`)
+           .text(`Deal: #${profile.deal_number ?? '—'} — ${profile.sponsor || ''}`)
+           .text(`Enrolment status: ${profile.enrolment_status || '—'} · Progress: ${profile.progress_pct != null ? Math.round(profile.progress_pct) + '%' : '—'}`)
+           .text(`Generated: ${new Date().toLocaleString('en-ZA')}`);
+
+        // ── Attendance log ──
+        sectionTitle('Attendance log');
+        drawTable(
+            [
+                { label: 'Date', width: 90 },
+                { label: 'Status', width: 80 },
+                { label: 'Sign in', width: 90 },
+                { label: 'Sign out', width: 90 },
+                { label: 'Geo verified', width: 100 },
+            ],
+            attendance,
+            r => [fmtDate(r.attendance_date), r.status, fmtTime(r.check_in_time), fmtTime(r.check_out_time), r.geo_verified ? 'Yes' : 'No'],
+            'No attendance records on file.'
+        );
+
+        // ── Feedback history ──
+        sectionTitle('Feedback history');
+        drawTable(
+            [
+                { label: 'Date', width: 110 },
+                { label: 'From', width: 110 },
+                { label: 'Type', width: 80 },
+                { label: 'Subject', width: 150 },
+            ],
+            feedback,
+            r => [fmtDateTime(r.sent_at || r.created_at), `${r.sender_name} ${r.sender_surname}`, r.feedback_type, r.subject || '—'],
+            'No feedback sent yet.'
+        );
+
+        // ── Units submitted / graded ──
+        sectionTitle('Units — submissions and grades');
+        drawTable(
+            [
+                { label: 'Unit', width: 30 },
+                { label: 'Assessment', width: 150 },
+                { label: 'Submitted', width: 80 },
+                { label: 'Score', width: 60 },
+                { label: 'Graded', width: 60 },
+                { label: 'Status', width: 80 },
+            ],
+            units,
+            r => [
+                String(r.unit_number),
+                r.assessment_title,
+                fmtDate(r.submitted_at),
+                `${Math.round(r.score)} / ${r.max_score}`,
+                r.is_graded ? 'Yes' : 'No (0)',
+                r.submission_status,
+            ],
+            'No assessments found for this qualification.'
+        );
+
+        doc.end();
+    } catch (err) {
+        console.error('GET .../compliance-report.pdf error:', err);
+        res.status(500).json({ success: false, message: 'Failed to generate compliance report' });
+    }
+});
+
 module.exports = router;

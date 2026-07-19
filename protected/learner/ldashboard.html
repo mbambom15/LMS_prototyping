@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Learner</title>
-    <link rel="stylesheet" href="ldashboard.css">
+    <link rel="stylesheet" href="/shared/ldashboard.css">
 </head>
 <body>
     <!-- ═══════════ HEADER ═══════════ -->
@@ -21,27 +21,24 @@
   <aside class="sidebar">
     <div class="slabel">My learning</div>
     <div class="sitem active" onclick="setActive(this)">Dashboard</div>
-    <div class="sitem" onclick="setActive(this)">My qualification</div>
-    <div class="sitem" onclick="setActive(this)">Materials</div>
+    <div class="sitem" onclick="navigateTo(this, '/shared/materials.html')">Materials</div>
     <div class="sitem" onclick="setActive(this)">Assessments</div>
     <div class="slabel">My record</div>
     <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
-    <div class="sitem" onclick="setActive(this)">PoE portfolio</div>
     <div class="sitem" onclick="setActive(this)">Results</div>
     <div class="slabel">Support</div>
-    <div class="sitem" onclick="setActive(this)">My mentor</div>
-    <div class="sitem" onclick="setActive(this)">Messages</div>
+    <div class="sitem" onclick="openMessagesModal()">Messages</div>
   </aside>
 
   <!-- ═══════════ MAIN ═══════════ -->
   <main>
 
-    <!-- Welcome bar -->
+    <!-- Welcome bar — qualification name is real, fetched from the session's active enrolment -->
     <div class="welcome-bar">
       <div class="welcome-av" id="welcome-av-initials"></div>
       <div>
         <div class="welcome-name" id="welcome-name">Loading…</div>
-        <div class="welcome-sub" id="welcome-sub">&nbsp;·&nbsp; MICT SETA &nbsp;·&nbsp;</div>
+        <div class="welcome-sub" id="welcome-sub">Loading your qualification…</div>
       </div>
       <a class="attend-btn" href="/learner/attendance.html" id="attend-btn">
         <div class="attend-dot" id="attend-dot"></div>
@@ -49,22 +46,18 @@
       </a>
     </div>
 
-    <!-- Stat cards -->
-    <div class="stats-row">
-      <div class="sc">
-        <div class="sc-label">Overall progress</div>
-        <div class="sc-val">82%</div>
-        <div class="sc-sub c-green">On track</div>
-      </div>
+    <!-- Stat cards — attendance rate is real (unchanged logic); the second card
+         reflects feedback, the only other thing this dashboard tracks -->
+    <div class="stats-row" style="grid-template-columns:repeat(2,minmax(0,1fr))">
       <div class="sc">
         <div class="sc-label">Attendance rate</div>
         <div class="sc-val" id="dash-attend-rate">—</div>
         <div class="sc-sub c-green" id="dash-attend-sub">Loading…</div>
       </div>
       <div class="sc">
-        <div class="sc-label">Units complete</div>
-        <div class="sc-val">3 / 4</div>
-        <div class="sc-sub" style="color:var(--text-secondary)">1 remaining</div>
+        <div class="sc-label">Latest feedback</div>
+        <div class="sc-val" id="dash-feedback-count">—</div>
+        <div class="sc-sub" id="dash-feedback-sub" style="color:var(--text-secondary)">Loading…</div>
       </div>
     </div>
 
@@ -74,115 +67,23 @@
       <!-- LEFT COLUMN -->
       <div>
 
-        <!-- Units -->
+        <!-- Feedback -->
         <div class="panel">
           <div class="ph">
-            <span class="pt">My units</span>
-            <span class="ps">IT Support NQF 4</span>
+            <span class="pt">Latest feedback</span>
+            <a href="#" onclick="openMessagesModal(); return false;" class="view-attend-link">View all →</a>
           </div>
-
-          <div class="unit-row">
-            <div class="unit-num done">1</div>
-            <div style="flex:1">
-              <div class="unit-name">Introduction to IT support</div>
-              <div class="unit-sub">Completed &nbsp;·&nbsp; 3 materials</div>
-            </div>
-            <span class="badge ba">Done</span>
-          </div>
-
-          <div class="unit-row">
-            <div class="unit-num done">2</div>
-            <div style="flex:1">
-              <div class="unit-name">Networking fundamentals</div>
-              <div class="unit-sub">Completed &nbsp;·&nbsp; 4 materials</div>
-            </div>
-            <span class="badge ba">Done</span>
-          </div>
-
-          <div class="unit-row">
-            <div class="unit-num done">3</div>
-            <div style="flex:1">
-              <div class="unit-name">Hardware &amp; troubleshooting</div>
-              <div class="unit-sub">Completed &nbsp;·&nbsp; 5 materials</div>
-            </div>
-            <span class="badge ba">Done</span>
-          </div>
-
-          <div class="unit-row">
-            <div class="unit-num prog">4</div>
-            <div style="flex:1">
-              <div class="unit-name">Assessment preparation</div>
-              <div class="unit-sub">In progress &nbsp;·&nbsp; 2 of 3 materials viewed</div>
-              <div style="display:flex;align-items:center;gap:8px;margin-top:7px">
-                <div class="prog-wrap"><div class="prog-fill py" style="width:66%"></div></div>
-                <span style="font-size:11px;color:var(--text-secondary)">66%</span>
-              </div>
-            </div>
-            <span class="badge bp">In progress</span>
+          <div id="feedback-preview">
+            <div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">Loading…</div>
           </div>
         </div>
 
-        <!-- Recent materials -->
+        <!-- Quick access to Materials -->
         <div class="panel">
-          <div class="ph">
-            <span class="pt">Recent materials</span>
-            <span class="ps">Unit 4 — Assessment preparation</span>
-          </div>
-
-          <div class="mat-item">
-            <div class="mat-icon mi-pdf">PDF</div>
-            <span class="mat-name">Exam_Prep_Guide.pdf</span>
-            <span class="mat-size">3.2 MB</span>
-            <span class="badge bb">New</span>
-          </div>
-          <div class="mat-item">
-            <div class="mat-icon mi-mp4">MP4</div>
-            <span class="mat-name">Mock_Assessment_Video.mp4</span>
-            <span class="mat-size">112 MB</span>
-          </div>
-          <div class="mat-item">
-            <div class="mat-icon mi-ppt">PPT</div>
-            <span class="mat-name">Week4_Revision_Slides.pptx</span>
-            <span class="mat-size">8.4 MB</span>
-          </div>
-          <div class="mat-item">
-            <div class="mat-icon mi-doc">DOC</div>
-            <span class="mat-name">Self_Study_Workbook.docx</span>
-            <span class="mat-size">1.8 MB</span>
-          </div>
-        </div>
-
-        <!-- Assessments -->
-        <div class="panel">
-          <div class="ph"><span class="pt">Assessments</span></div>
-
-          <div class="assess-row">
-            <div style="flex:1">
-              <div class="assess-name">Formative — Unit 1</div>
-              <div class="assess-sub">Submitted 14 Jan 2025</div>
-            </div>
-            <span class="score-pill" style="background:#eaf3de;color:#3b6d11">78%</span>
-          </div>
-          <div class="assess-row">
-            <div style="flex:1">
-              <div class="assess-name">Formative — Unit 2</div>
-              <div class="assess-sub">Submitted 28 Jan 2025</div>
-            </div>
-            <span class="score-pill" style="background:#eaf3de;color:#3b6d11">84%</span>
-          </div>
-          <div class="assess-row">
-            <div style="flex:1">
-              <div class="assess-name">Formative — Unit 3</div>
-              <div class="assess-sub">Submitted 10 Feb 2025</div>
-            </div>
-            <span class="score-pill" style="background:#eaf3de;color:#3b6d11">71%</span>
-          </div>
-          <div class="assess-row">
-            <div style="flex:1">
-              <div class="assess-name">Summative — Unit 4</div>
-              <div class="assess-sub">Due 30 Apr 2025</div>
-            </div>
-            <span class="score-pill" style="background:#faeeda;color:#854f0b">Upcoming</span>
+          <div class="ph"><span class="pt">Materials</span></div>
+          <div style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12.5px;color:var(--text-secondary)">Read or download your qualification's materials.</span>
+            <a href="/shared/materials.html" class="attend-btn" style="background:var(--blue)">Open Materials</a>
           </div>
         </div>
 
@@ -191,7 +92,7 @@
       <!-- RIGHT COLUMN -->
       <div>
 
-        <!-- Attendance summary panel -->
+        <!-- Attendance summary panel — UNCHANGED, do not restyle -->
         <div class="panel">
           <div class="ph">
             <span class="pt">Attendance log</span>
@@ -219,67 +120,22 @@
           </div>
         </div>
 
-        <!-- PoE status -->
-        <div class="panel">
-          <div class="ph"><span class="pt">PoE status</span><span class="ps">7 of 9 submitted</span></div>
-          <div style="padding:14px 18px">
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:6px">
-              <span>Submission progress</span>
-              <span style="color:var(--text-primary);font-weight:600">78%</span>
-            </div>
-            <div class="prog-wrap" style="height:8px;margin-bottom:16px">
-              <div class="prog-fill pg" style="width:78%"></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:0">
-              <div class="poe-row"><span>Unit 1 — Task 1</span><span class="badge ba">Accepted</span></div>
-              <div class="poe-row"><span>Unit 1 — Task 2</span><span class="badge ba">Accepted</span></div>
-              <div class="poe-row"><span>Unit 2 — Task 1</span><span class="badge ba">Accepted</span></div>
-              <div class="poe-row"><span>Unit 2 — Task 2</span><span class="badge ba">Accepted</span></div>
-              <div class="poe-row"><span>Unit 3 — Task 1</span><span class="badge ba">Accepted</span></div>
-              <div class="poe-row"><span>Unit 3 — Task 2</span><span class="badge ba">Accepted</span></div>
-              <div class="poe-row"><span>Unit 3 — Task 3</span><span class="badge ba">Accepted</span></div>
-              <div class="poe-row"><span>Unit 4 — Task 1</span><span class="badge bn">In review</span></div>
-              <div class="poe-row"><span>Unit 4 — Task 2</span><span class="badge bp">Pending</span></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Notifications -->
-        <div class="panel">
-          <div class="ph"><span class="pt">Notifications</span></div>
-          <div class="notif-item">
-            <div class="ndot" style="background:#1d9e75"></div>
-            <div>
-              <div class="ntext">New material added to Unit 4</div>
-              <div class="ntime">Today</div>
-            </div>
-          </div>
-          <div class="notif-item">
-            <div class="ndot" style="background:#185fa5"></div>
-            <div>
-              <div class="ntext">Mentor session scheduled: Thu 17 Apr, 10:00</div>
-              <div class="ntime">Tomorrow</div>
-            </div>
-          </div>
-          <div class="notif-item">
-            <div class="ndot" style="background:#ba7517"></div>
-            <div>
-              <div class="ntext">Summative assessment due in 14 days</div>
-              <div class="ntime">30 Apr deadline</div>
-            </div>
-          </div>
-          <div class="notif-item">
-            <div class="ndot" style="background:#3c3489"></div>
-            <div>
-              <div class="ntext">PoE Task 3 — Unit 3 accepted by assessor</div>
-              <div class="ntime">2 days ago</div>
-            </div>
-          </div>
-        </div>
-
       </div><!-- /right col -->
     </div><!-- /cols -->
   </main>
+</div>
+
+<!-- Messages modal -->
+<div class="modal-overlay" id="messages-modal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="pt">Messages from your facilitators</span>
+      <button class="hbtn" onclick="closeMessagesModal()">Close</button>
+    </div>
+    <div id="messages-list" class="modal-body">
+      <div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">Loading…</div>
+    </div>
+  </div>
 </div>
 
 <footer>Nkanyezi Learnership Management System &copy; 2025</footer>

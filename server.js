@@ -39,6 +39,7 @@ app.use(qualificationsRoutes);
 app.use(dealsRoutes);
 app.use(dashboardRoutes);
 app.use(require('./routes/materials'));
+app.use(require('./routes/learner'));
 app.use(require('./routes/facilitator'));
 // Protect /admin
 app.use('/admin', isAuthenticated, isRole('admin'), express.static('protected/admin'));
@@ -47,6 +48,8 @@ app.use('/admin', isAuthenticated, isRole('admin'), express.static('protected/ad
 app.use('/learner', isAuthenticated, isRole('learner'), express.static('protected/learner'));
 
 app.use('/facilitator', isAuthenticated, isRole('facilitator'), express.static('protected/facilitator'));
+
+app.use('/shared', isAuthenticated, express.static('protected/shared'));
 
 app.get('/', (req, res) => res.redirect('/login'));
 

@@ -240,9 +240,7 @@ window.addEventListener('click', (e) => {
 });
 
 //-compliance report download
-function downloadComplianceReport(learnerId) {
-    window.location.href = `/api/facilitator/learners/${learnerId}/compliance-report.pdf`;
-}
+
 
 // ── Work submitted ───────────────────────────────────────────
 async function loadSubmissions() {

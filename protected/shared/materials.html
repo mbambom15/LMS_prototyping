@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Material — Nkanyezi Academy</title>
+    <link rel="stylesheet" href="ldashboard.css">
+    <link rel="stylesheet" href="materials.css">
+</head>
+<body>
+    <header>
+      <span class="logo">Nkanyezi Academy <small>Learner Portal</small></span>
+      <button class="hbtn">Help</button>
+      <button class="hbtn" onclick="handleLogout()">Logout</button>
+      <div class="av" id="header-initials">--</div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="slabel">My learning</div>
+        <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Dashboard</div>
+        <div class="sitem active" onclick="setActive(this)">Materials</div>
+        <div class="sitem" onclick="setActive(this)">Assessments</div>
+        <div class="slabel">My record</div>
+        <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
+        <div class="sitem" onclick="setActive(this)">Results</div>
+        <div class="slabel">Support</div>
+        <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Messages</div>
+      </aside>
+
+      <main>
+        <div class="mat-page-head">
+          <h1 id="qual-title">My Material</h1>
+          <p id="qual-sub" class="mat-page-sub">Loading your qualification…</p>
+        </div>
+
+        <div class="mat-overall panel" id="mat-overall" style="display:none">
+          <div class="mat-overall-label"><b id="mat-done-count">0</b>&nbsp;of&nbsp;<span id="mat-total-count">0</span> materials reviewed</div>
+          <div class="prog-wrap"><div class="prog-fill pb" id="mat-overall-bar" style="width:0%"></div></div>
+        </div>
+
+        <div id="mat-units"></div>
+
+        <div id="mat-empty" class="panel" style="display:none;padding:24px 20px;text-align:center;color:var(--text-secondary);font-size:13px">
+          No active qualification found for your account yet. Check with your facilitator if this looks wrong.
+        </div>
+      </main>
+    </div>
+
+    <footer>Nkanyezi Learnership Management System &copy; 2025</footer>
+
+    <script src="materials.js"></script>
+</body>
+</html>

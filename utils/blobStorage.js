@@ -20,14 +20,27 @@ async function uploadMaterial(unitId, file) {
   return blobName; // stored in DB — not a public URL, since container is private
 }
 
-function getSasUrl(blobName, expiryMinutes = 60) {
+// getSasUrl(blobName) — unchanged behaviour, existing callers keep working.
+// getSasUrl(blobName, { download: true, fileName }) — new: sets
+// Content-Disposition: attachment on the SAS token so the browser saves
+// the file instead of opening it inline.
+function getSasUrl(blobName, options = {}) {
+  const { expiryMinutes = 60, download = false, fileName } = options;
   const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-  const sasToken = generateBlobSASQueryParameters({
+
+  const sasOptions = {
     containerName,
     blobName,
     permissions: BlobSASPermissions.parse('r'),
     expiresOn: new Date(Date.now() + expiryMinutes * 60 * 1000),
-  }, sharedKeyCredential).toString();
+  };
+
+  if (download) {
+    const name = fileName || blobName.split('/').pop();
+    sasOptions.contentDisposition = `attachment; filename="${name}"`;
+  }
+
+  const sasToken = generateBlobSASQueryParameters(sasOptions, sharedKeyCredential).toString();
   return `${blockBlobClient.url}?${sasToken}`;
 }
 
@@ -37,5 +50,3 @@ async function deleteBlob(blobName) {
 }
 
 module.exports = { uploadMaterial, getSasUrl, deleteBlob };
-
-module.exports = { uploadMaterial, getSasUrl };

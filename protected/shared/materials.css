@@ -1,0 +1,86 @@
+/* Builds on ldashboard.css's variables (--bg-primary, --blue, --green, --radius-md, etc.)
+   Load order matters: ldashboard.css then materials.css. */
+
+.mat-page-head { margin-bottom: 14px; }
+.mat-page-head h1 { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+.mat-page-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+
+.mat-overall {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 18px;
+}
+.mat-overall-label { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+.mat-overall .prog-wrap { flex: 1; height: 7px; }
+
+/* ── Unit accordion ── */
+.unit-acc { margin-bottom: 12px; }
+
+.unit-acc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  cursor: pointer;
+}
+.unit-acc-head:hover { background: var(--bg-secondary); }
+.unit-acc.closed .unit-acc-body { display: none; }
+.unit-acc-caret {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  transition: transform .12s ease;
+  flex-shrink: 0;
+}
+.unit-acc.closed .unit-acc-caret { transform: rotate(-90deg); }
+.unit-acc-tag { font-size: 10.5px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+.unit-acc-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+.unit-acc-titles { flex: 1; min-width: 0; }
+
+/* ── Material row ── */
+.mat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 18px 11px 34px;
+  border-top: 0.5px solid var(--border-light);
+}
+.mat-row .check {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-mid);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.mat-row.viewed .check { background: var(--green); border-color: var(--green); }
+.mat-row.viewed .check svg { stroke: #fff; }
+
+.mat-row .mat-info { flex: 1; min-width: 0; }
+.mat-row .mat-kind { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-tertiary); margin-bottom: 1px; }
+.mat-row .mat-title { font-size: 13px; color: var(--text-primary); }
+.mat-row .mat-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+
+.mat-row .mat-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.mat-row .mat-actions a {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  border: 0.5px solid var(--border-mid);
+  color: var(--text-secondary);
+}
+.mat-row .mat-actions a.primary {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.mat-row .mat-actions a:hover.primary { background: var(--blue-dark); }
+.mat-row .mat-actions a:hover:not(.primary) { background: var(--bg-secondary); }
+
+.mat-empty-unit {
+  padding: 11px 18px 11px 34px;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  border-top: 0.5px solid var(--border-light);
+}

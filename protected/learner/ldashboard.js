@@ -28,26 +28,12 @@ async function loadUser() {
         }
         const user = await res.json();
 
-        // Full name
         const fullName = [user.name, user.surname].filter(Boolean).join(' ') || user.email || 'Learner';
+        const initials = fullName.split(' ').slice(0, 2).map(p => p[0].toUpperCase()).join('');
 
-        // Initials (up to 2 chars)
-        const initials = fullName
-            .split(' ')
-            .slice(0, 2)
-            .map(p => p[0].toUpperCase())
-            .join('');
-
-        // Populate welcome bar
-        document.getElementById('welcome-name').textContent   = fullName;
+        document.getElementById('welcome-name').textContent = fullName;
         document.getElementById('welcome-av-initials').textContent = initials;
-        document.getElementById('header-initials').textContent     = initials;
-
-        // Qualification / SETA sub-line (extend when API returns it)
-        if (user.qualification) {
-            document.getElementById('welcome-sub').textContent =
-                ` · ${user.qualification} · `;
-        }
+        document.getElementById('header-initials').textContent = initials;
 
         return user;
     } catch (err) {
@@ -55,7 +41,26 @@ async function loadUser() {
     }
 }
 
-/* ── Load today's attendance status to update the button ── */
+/* ── Qualification name for the welcome bar (replaces the old hardcoded "MICT SETA") ── */
+async function loadQualification() {
+    const subEl = document.getElementById('welcome-sub');
+    try {
+        const res = await fetch('/api/learner/qualification');
+        if (!res.ok) throw new Error('Failed to load qualification');
+        const data = await res.json();
+
+        if (!data.qualification) {
+            subEl.textContent = 'No active qualification on record';
+            return;
+        }
+        subEl.textContent = data.qualification.title;
+    } catch (err) {
+        console.error('loadQualification error:', err);
+        subEl.textContent = '';
+    }
+}
+
+/* ── Load today's attendance status to update the button — UNCHANGED ── */
 async function loadTodayStatus() {
     try {
         const res = await fetch('/api/attendance/today-status');
@@ -67,18 +72,15 @@ async function loadTodayStatus() {
         const btn   = document.getElementById('attend-btn');
 
         if (data.signedIn && data.signedOut) {
-            // Fully done for today
             dot.style.background   = '#1d9e75';
             label.textContent      = 'Attendance recorded ✓';
             btn.style.background   = '#e6f7ec';
             btn.style.color        = '#0f7b4c';
             btn.style.borderColor  = '#1d9e75';
         } else if (data.signedIn) {
-            // Signed in, not out yet
             dot.style.background = '#f59e0b';
             label.textContent    = 'Sign out when leaving';
         } else {
-            // Not yet signed in
             dot.style.background = '#e24b4a';
             label.textContent    = 'Capture attendance';
         }
@@ -87,7 +89,7 @@ async function loadTodayStatus() {
     }
 }
 
-/* ── Load attendance rate into stat card ── */
+/* ── Load attendance rate into stat card — UNCHANGED ── */
 async function loadAttendanceRate() {
     try {
         const res = await fetch('/api/attendance/history');
@@ -122,26 +124,21 @@ async function loadAttendanceRate() {
     }
 }
 
-/* ── Build attendance calendar for current month ── */
+/* ── Build attendance calendar for current month — UNCHANGED ── */
 async function buildCalendar() {
     const grid  = document.getElementById('cal-grid');
     const now   = new Date();
     const year  = now.getFullYear();
-    const month = now.getMonth();         // 0-indexed
+    const month = now.getMonth();
     const today = now.getDate();
 
-    // Update header label
     document.getElementById('cal-month').textContent =
         now.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
 
-    // Days in month
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-    // Mon-first start offset: getDay() returns 0=Sun, we want Mon=0
     const firstDow = new Date(year, month, 1).getDay();
-    const offset   = (firstDow + 6) % 7;   // Mon-first
+    const offset   = (firstDow + 6) % 7;
 
-    // Try to get real records from API
     let presentDays = [];
     let lateDays    = [];
     let absentDays  = [];
@@ -151,8 +148,7 @@ async function buildCalendar() {
         if (res.ok) {
             const data = (await res.json()).records || [];
             data.forEach(r => {
-                // r.date is like "01 May 2025" — parse day if same month/year
-                const d   = new Date(r.date);
+                const d = new Date(r.date);
                 if (d.getFullYear() === year && d.getMonth() === month) {
                     const day = d.getDate();
                     if (r.status === 'present') presentDays.push(day);
@@ -163,7 +159,6 @@ async function buildCalendar() {
         }
     } catch { /* use empty arrays */ }
 
-    // Blank cells before day 1
     for (let i = 0; i < offset; i++) {
         const blank = document.createElement('div');
         blank.style.height = '23px';
@@ -193,10 +188,87 @@ async function buildCalendar() {
     }
 }
 
+/* ── Feedback ── */
+function timeAgo(dateStr) {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const days = Math.floor(diffMs / 86400000);
+    if (days <= 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    return `${days} days ago`;
+}
+
+function renderFeedbackItem(f) {
+    const fromName = [f.from_name, f.from_surname].filter(Boolean).join(' ') || 'Facilitator';
+    return `
+      <div class="notif-item">
+        <div class="ndot" style="background:#185fa5"></div>
+        <div>
+          <div class="ntext"><strong>${fromName}</strong>${f.subject ? ' — ' + f.subject : ''}</div>
+          <div class="ntext" style="color:var(--text-secondary);margin-top:2px">${f.message}</div>
+          <div class="ntime">${timeAgo(f.sent_at)}</div>
+        </div>
+      </div>`;
+}
+
+async function loadFeedbackPreview() {
+    const previewEl = document.getElementById('feedback-preview');
+    const countEl = document.getElementById('dash-feedback-count');
+    const subEl = document.getElementById('dash-feedback-sub');
+
+    try {
+        const res = await fetch('/api/learner/feedback?limit=3');
+        if (!res.ok) throw new Error('Failed to load feedback');
+        const data = await res.json();
+        const items = data.feedback || [];
+
+        if (!items.length) {
+            previewEl.innerHTML = '<div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">No feedback yet.</div>';
+            countEl.textContent = '0';
+            subEl.textContent = 'No feedback yet';
+            return;
+        }
+
+        previewEl.innerHTML = items.map(renderFeedbackItem).join('');
+        countEl.textContent = items.length;
+        subEl.textContent = `Latest: ${timeAgo(items[0].sent_at)}`;
+    } catch (err) {
+        console.error('loadFeedbackPreview error:', err);
+        previewEl.innerHTML = '<div style="padding:16px 18px;font-size:12.5px;color:var(--text-danger)">Could not load feedback.</div>';
+    }
+}
+
+/* ── Messages modal — full feedback history ── */
+async function openMessagesModal() {
+    const modal = document.getElementById('messages-modal');
+    const listEl = document.getElementById('messages-list');
+    modal.style.display = 'flex';
+    listEl.innerHTML = '<div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">Loading…</div>';
+
+    try {
+        const res = await fetch('/api/learner/feedback');
+        if (!res.ok) throw new Error('Failed to load messages');
+        const data = await res.json();
+        const items = data.feedback || [];
+
+        listEl.innerHTML = items.length
+            ? items.map(renderFeedbackItem).join('')
+            : '<div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">No messages yet.</div>';
+    } catch (err) {
+        console.error('openMessagesModal error:', err);
+        listEl.innerHTML = '<div style="padding:16px 18px;font-size:12.5px;color:var(--text-danger)">Could not load messages.</div>';
+    }
+}
+
+function closeMessagesModal() {
+    document.getElementById('messages-modal').style.display = 'none';
+}
+
 /* ── Init ── */
 window.addEventListener('DOMContentLoaded', async () => {
     await loadUser();
+    loadQualification();
     loadTodayStatus();
     loadAttendanceRate();
     buildCalendar();
+    loadFeedbackPreview();
 });

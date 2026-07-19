@@ -95,11 +95,8 @@ router.delete('/api/materials/:id', isAuthenticated, isRole('admin'), async (req
 
     const { file_url: blobName, title, file_name } = existing.rows[0];
 
-    // Delete the DB row first — if this fails we haven't touched storage yet.
     await pool.query(`DELETE FROM materials WHERE id = $1`, [id]);
 
-    // Best-effort blob cleanup; the DB row is already gone either way, so a
-    // storage hiccup here shouldn't block the admin from seeing it removed.
     try {
       await deleteBlob(blobName);
     } catch (blobErr) {
@@ -114,7 +111,6 @@ router.delete('/api/materials/:id', isAuthenticated, isRole('admin'), async (req
 });
 
 // POST /api/materials/:id/replace — swap the underlying file, keep the same row/id
-// (so any existing links/bookmarks to this material keep working)
 router.post('/api/materials/:id/replace', isAuthenticated, isRole('admin'), upload.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -135,9 +131,6 @@ router.post('/api/materials/:id/replace', isAuthenticated, isRole('admin'), uplo
       [newBlobName, req.file.originalname, req.file.size, EXT_TO_TYPE[ext] || 'other', id]
     );
 
-    // Clean up the superseded blob now that the new one is safely uploaded
-    // and the DB row points at it. Best-effort — the swap has already
-    // succeeded from the admin's point of view even if this fails.
     try {
       await deleteBlob(oldBlobName);
     } catch (blobErr) {
@@ -151,4 +144,114 @@ router.post('/api/materials/:id/replace', isAuthenticated, isRole('admin'), uplo
   }
 });
 
+
+// GET /api/learner/materials
+// Resolves the calling learner's ACTIVE qualification from their
+// session (req.session.user.id) via enrolments, returns every unit
+// under it with published materials + this learner's view status.
+// One query, no N+1.
+//
+// Test:  curl -b cookie.txt http://localhost:3000/api/learner/materials
+router.get('/api/learner/materials', isAuthenticated, isRole('learner'), async (req, res) => {
+  try {
+    const learnerId = req.session.user.id;
+
+    const { rows } = await pool.query(
+      `SELECT
+         q.qualification_id, q.title AS qualification_title, q.nqf_level,
+         u.id AS unit_id, u.unit_number, u.title AS unit_title,
+         m.id AS material_id, m.title AS material_title, m.description,
+         m.material_type, m.file_name, m.file_size_bytes, m.file_url, m.sort_order,
+         mv.viewed_at
+       FROM enrolments e
+       JOIN qualifications q ON q.qualification_id = e.qualification_id
+       JOIN units u          ON u.qualification_id = q.qualification_id
+       LEFT JOIN materials m       ON m.unit_id = u.id AND m.is_published = TRUE
+       LEFT JOIN material_views mv ON mv.material_id = m.id AND mv.learner_id = e.learner_id
+       WHERE e.learner_id = $1 AND e.status = 'active'
+       ORDER BY u.unit_number, m.sort_order`,
+      [learnerId]
+    );
+
+    if (!rows.length) {
+      return res.json({ success: true, qualification: null, units: [] });
+    }
+
+    const qualification = {
+      id: rows[0].qualification_id,
+      title: rows[0].qualification_title,
+      nqf_level: rows[0].nqf_level,
+    };
+
+    const unitsById = new Map();
+    for (const r of rows) {
+      if (!unitsById.has(r.unit_id)) {
+        unitsById.set(r.unit_id, { id: r.unit_id, unit_number: r.unit_number, title: r.unit_title, materials: [] });
+      }
+      if (r.material_id) {
+        unitsById.get(r.unit_id).materials.push({
+          id: r.material_id,
+          title: r.material_title,
+          description: r.description,
+          type: r.material_type,
+          file_name: r.file_name,
+          file_size_bytes: r.file_size_bytes,
+          // Same helper your existing GET /api/units/:unitId/materials uses — sync, not awaited.
+          url: getSasUrl(r.file_url),
+          viewed: !!r.viewed_at,
+        });
+      }
+    }
+
+    res.json({ success: true, qualification, units: [...unitsById.values()] });
+  } catch (err) {
+    console.error('GET /api/learner/materials error:', err);
+    res.status(500).json({ success: false, message: 'Failed to load materials' });
+  }
+});
+
+// GET /api/learner/materials/:materialId/view?download=1
+// Records the view (upsert) then hands back the signed URL as JSON —
+// the frontend opens it with window.open() / triggers the download.
+// Pass ?download=1 to get a SAS URL with Content-Disposition: attachment
+// (forces Save As instead of opening inline).
+//
+// Test:  curl -b cookie.txt http://localhost:3000/api/learner/materials/<id>/view
+//        curl -b cookie.txt http://localhost:3000/api/learner/materials/<id>/view?download=1
+router.get('/api/learner/materials/:materialId/view', isAuthenticated, isRole('learner'), async (req, res) => {
+  try {
+    const learnerId = req.session.user.id;
+    const { materialId } = req.params;
+    const wantsDownload = req.query.download === '1';
+
+    const { rows } = await pool.query(
+      `SELECT m.id, m.file_url, m.file_name, m.title
+       FROM materials m
+       JOIN units u      ON u.id = m.unit_id
+       JOIN enrolments e ON e.qualification_id = u.qualification_id
+       WHERE m.id = $1 AND m.is_published = TRUE
+         AND e.learner_id = $2 AND e.status = 'active'
+       LIMIT 1`,
+      [materialId, learnerId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Material not found' });
+
+    await pool.query(
+      `INSERT INTO material_views (material_id, learner_id, viewed_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (material_id, learner_id) DO UPDATE SET viewed_at = NOW()`,
+      [materialId, learnerId]
+    );
+
+    const url = getSasUrl(rows[0].file_url, {
+      download: wantsDownload,
+      fileName: rows[0].file_name,
+    });
+
+    res.json({ success: true, url, file_name: rows[0].file_name });
+  } catch (err) {
+    console.error('GET /api/learner/materials/:materialId/view error:', err);
+    res.status(500).json({ success: false, message: 'Failed to open material' });
+  }
+});
 module.exports = router;

@@ -12,7 +12,6 @@ function switchToPage(pageId) {
     );
     if (activeNav) activeNav.classList.add('active');
 
-    // Lazy-load each page's data the first time it's opened
     if (!loadedPages.has(pageId)) {
         loadedPages.add(pageId);
         if (pageId === 'dashboard') loadDashboard();
@@ -21,6 +20,7 @@ function switchToPage(pageId) {
         if (pageId === 'risk') loadRiskLearners();
         if (pageId === 'attendance') { populateDealFilter(); loadAttendance(); }
         if (pageId === 'feedback-history') loadFeedbackHistory();
+        if (pageId === 'messages') loadMessages();
     }
 }
 
@@ -377,15 +377,13 @@ async function populateDealFilter() {
     }
 }
 
-// Fills the From/To inputs based on a "This week" / "This month" preset.
-// "Custom range" leaves whatever the facilitator has already picked.
 function applyPeriodPreset(period) {
     const fmt = dt => dt.toISOString().slice(0, 10);
     const today = new Date();
     let from, to;
 
     if (period === 'week') {
-        const day = today.getDay(); // 0 = Sunday
+        const day = today.getDay();
         const diffToMonday = day === 0 ? -6 : 1 - day;
         from = new Date(today);
         from.setDate(today.getDate() + diffToMonday);
@@ -394,7 +392,7 @@ function applyPeriodPreset(period) {
         from = new Date(today.getFullYear(), today.getMonth(), 1);
         to = today;
     } else {
-        return; // custom — leave inputs as-is
+        return;
     }
 
     document.getElementById('att-from').value = fmt(from);
@@ -444,8 +442,6 @@ async function loadAttendance() {
     }
 }
 
-// Triggers a same-origin GET so the browser handles the PDF download using
-// the existing session cookie — no need to fetch()/blob it manually.
 function downloadAttendancePdf() {
     const dealNumber = document.getElementById('att-deal-filter').value;
     const from = document.getElementById('att-from').value;
@@ -578,8 +574,157 @@ function closeFhModal() {
     document.getElementById('fhModal').classList.remove('show');
 }
 
+// ── Messages (two-way threads) ─────────────────────────────────
+let msgThreadsCache = [];
+let composeLearnersLoaded = false;
+
+async function loadMessages() {
+    const tbody = document.getElementById('messages-rows');
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Loading…</td></tr>`;
+
+    try {
+        const resp = await apiGet('/api/facilitator/messages');
+        const rows = resp.messages || [];
+        msgThreadsCache = groupMessageThreads(rows);
+
+        const learnerInitiatedUnanswered = msgThreadsCache.filter(t => t.latest.from_role === 'learner').length;
+        document.getElementById('messages-count-badge').textContent = learnerInitiatedUnanswered || '';
+
+        if (!msgThreadsCache.length) {
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No messages yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = msgThreadsCache.map(t => {
+            const preview = (t.latest.message || '').slice(0, 60);
+            const fromLabel = t.latest.from_role === 'learner'
+                ? `${t.root.learner_name} ${t.root.learner_surname}`
+                : `${t.latest.from_name} ${t.latest.from_surname}`;
+            return `
+                <tr class="clickable-row" onclick="openMsgThreadModal('${t.root.id}')">
+                    <td><span class="avatar-init" style="margin-right:8px;">${initials(t.root.learner_name, t.root.learner_surname)}</span>${t.root.learner_name} ${t.root.learner_surname}</td>
+                    <td>${t.root.deal_number ? `#${t.root.deal_number}` : '—'}</td>
+                    <td>${preview}${(t.latest.message || '').length > 60 ? '…' : ''}</td>
+                    <td>${fromLabel}</td>
+                    <td>${fmtDateTimeFull(t.latest.sent_at)}</td>
+                    <td><button class="btn btn-sm">Open</button></td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('loadMessages error:', err);
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Couldn't load messages.</td></tr>`;
+    }
+}
+
+function groupMessageThreads(rows) {
+    const roots = rows.filter(r => !r.parent_id);
+    const repliesByRoot = {};
+    rows.filter(r => r.parent_id).forEach(r => {
+        (repliesByRoot[r.parent_id] ||= []).push(r);
+    });
+
+    const threads = roots.map(root => {
+        const replies = (repliesByRoot[root.id] || []).sort((a, b) => new Date(a.sent_at) - new Date(b.sent_at));
+        const latest = replies.length ? replies[replies.length - 1] : root;
+        return { root, replies, latest };
+    });
+
+    threads.sort((a, b) => new Date(b.latest.sent_at) - new Date(a.latest.sent_at));
+    return threads;
+}
+
+function openMsgThreadModal(rootId) {
+    const thread = msgThreadsCache.find(t => String(t.root.id) === String(rootId));
+    const modal = document.getElementById('msgThreadModal');
+    const body = document.getElementById('msgThreadBody');
+    const title = document.getElementById('msgThreadTitle');
+    if (!thread) return;
+
+    title.textContent = `${thread.root.learner_name} ${thread.root.learner_surname}${thread.root.subject ? ' — ' + thread.root.subject : ''}`;
+    const allMsgs = [thread.root, ...thread.replies];
+    body.innerHTML = allMsgs.map(m => `
+        <div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #eee;">
+            <strong>${m.from_role === 'learner' ? `${thread.root.learner_name} ${thread.root.learner_surname}` : `${m.from_name} ${m.from_surname}`}</strong>
+            <span class="card-sub" style="margin-left:6px;">${fmtDateTimeFull(m.sent_at)}</span>
+            <div style="margin-top:4px; white-space:pre-wrap;">${(m.message || '').replace(/</g, '&lt;')}</div>
+        </div>
+    `).join('');
+
+    modal.dataset.rootId = thread.root.id;
+    modal.classList.add('show');
+}
+
+function closeMsgThreadModal() {
+    document.getElementById('msgThreadModal').classList.remove('show');
+    document.getElementById('msgReplyInput').value = '';
+}
+
+async function sendMsgReply() {
+    const modal = document.getElementById('msgThreadModal');
+    const rootId = modal.dataset.rootId;
+    const input = document.getElementById('msgReplyInput');
+    const message = input.value.trim();
+    if (!message || !rootId) return;
+
+    try {
+        await apiPost(`/api/facilitator/messages/${rootId}/reply`, { message });
+        input.value = '';
+        await loadMessages();
+        openMsgThreadModal(rootId);
+    } catch (err) {
+        console.error('sendMsgReply error:', err);
+        alert(err.message || "Couldn't send reply.");
+    }
+}
+
+async function openComposeModal() {
+    if (!composeLearnersLoaded) {
+        composeLearnersLoaded = true;
+        try {
+            const resp = await apiGet('/api/facilitator/learners');
+            const select = document.getElementById('compose-learner');
+            (resp.learners || []).forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.user_id;
+                opt.textContent = `${l.name} ${l.surname} — Deal #${l.deal_number}`;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('openComposeModal learners error:', err);
+        }
+    }
+    document.getElementById('composeModal').classList.add('show');
+}
+
+function closeComposeModal() {
+    document.getElementById('composeModal').classList.remove('show');
+}
+
+async function sendComposeMessage() {
+    const learnerId = document.getElementById('compose-learner').value;
+    const subject = document.getElementById('compose-subject').value.trim();
+    const message = document.getElementById('compose-message').value.trim();
+
+    if (!learnerId) { alert('Please select a learner.'); return; }
+    if (!message) { alert('Please enter a message.'); return; }
+
+    try {
+        await apiPost('/api/facilitator/messages', { learnerId, subject, message });
+        document.getElementById('compose-subject').value = '';
+        document.getElementById('compose-message').value = '';
+        closeComposeModal();
+        loadMessages();
+    } catch (err) {
+        console.error('sendComposeMessage error:', err);
+        alert(err.message || "Couldn't send message.");
+    }
+}
+
 window.addEventListener('click', (e) => {
     if (e.target === document.getElementById('fhModal')) closeFhModal();
+    if (e.target === document.getElementById('msgThreadModal')) closeMsgThreadModal();
+    if (e.target === document.getElementById('composeModal')) closeComposeModal();
 });
 
 (async function initFacilitatorAvatar() {

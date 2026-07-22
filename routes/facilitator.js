@@ -26,8 +26,6 @@ router.get('/api/facilitator/me', async (req, res) => {
 });
 
 // ── GET /api/facilitator/deals?search=&status= ───────────────────
-
-// Deal management list: filterable + searchable, scoped to this facilitator
 router.get('/api/facilitator/deals', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -75,7 +73,6 @@ router.get('/api/facilitator/deals', async (req, res) => {
 });
 
 // ── GET /api/facilitator/deals/statuses ──────────────────────────
-// Distinct statuses actually in use for this facilitator's deals, to build the filter dropdown dynamically
 router.get('/api/facilitator/deals/statuses', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -172,7 +169,6 @@ router.get('/api/facilitator/at-risk-learners', async (req, res) => {
 });
 
 // ── GET /api/facilitator/deals/:dealNumber ────────────────────────
-// Deal detail page: deal header info + the full learner roster for that deal
 router.get('/api/facilitator/deals/:dealNumber', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -230,9 +226,6 @@ router.get('/api/facilitator/deals/:dealNumber', async (req, res) => {
             [dealNumber, deal.qualification_id]
         );
 
-        // Expected progress = how far through the qualification's duration the
-        // cohort should be by now, based on the DEAL's start date (uniform
-        // across the roster rather than each learner's individual enrolment date).
         const durationDays = (deal.duration_months || 0) * 30;
         const learners = learnersResult.rows.map(l => {
             let expectedPct = null;
@@ -245,10 +238,6 @@ router.get('/api/facilitator/deals/:dealNumber', async (req, res) => {
             const neverAttended = Number(l.attendance_count) === 0;
             const actualPct = l.progress_pct != null ? Math.round(l.progress_pct) : null;
 
-            // Risk status:
-            //  - never signed attendance at all -> flagged regardless of progress
-            //  - any gap behind expected -> at least "watch" (amber)
-            //  - gap of more than 5 points -> "at risk", needs immediate intervention
             let riskStatus = 'on-track';
             if (neverAttended) {
                 riskStatus = 'at-risk';
@@ -274,7 +263,6 @@ router.get('/api/facilitator/deals/:dealNumber', async (req, res) => {
 });
 
 // ── GET /api/facilitator/learners/:learnerId ─────────────────────
-// Full detail card for the "View details" modal — ownership enforced via the learner's deal
 router.get('/api/facilitator/learners/:learnerId', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -316,8 +304,6 @@ router.get('/api/facilitator/learners/:learnerId', async (req, res) => {
 
         const l = result.rows[0];
 
-        // Same expected-% and risk logic as the deal roster, computed live off
-        // the deal's start date rather than the (potentially stale) risk_flags table.
         const durationDays = (l.duration_months || 0) * 30;
         let expectedPct = null;
         if (l.deal_start_date && durationDays > 0) {
@@ -346,6 +332,28 @@ router.get('/api/facilitator/learners/:learnerId', async (req, res) => {
     }
 });
 
+// ── GET /api/facilitator/learners ─────────────────────────────────
+// Flat list of this facilitator's learners — used to populate the
+// "New message" learner picker.
+router.get('/api/facilitator/learners', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const result = await pool.query(
+            `SELECT u.user_id, u.name, u.surname, d.deal_number, d.sponsor
+             FROM learners l
+             JOIN users u ON u.user_id = l.learner_id
+             JOIN deals d ON d.deal_number = l.deal_number
+             WHERE d.facilitator_id = $1 AND d.is_deleted = FALSE
+             ORDER BY u.name, u.surname`,
+            [facilitatorId]
+        );
+        res.json({ success: true, learners: result.rows });
+    } catch (err) {
+        console.error('GET /api/facilitator/learners error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch learners' });
+    }
+});
+
 // ── GET /api/facilitator/learners/:learnerId/attendance ──────────
 router.get('/api/facilitator/learners/:learnerId/attendance', async (req, res) => {
     try {
@@ -356,7 +364,6 @@ router.get('/api/facilitator/learners/:learnerId/attendance', async (req, res) =
             return res.status(400).json({ success: false, message: 'Invalid learner ID' });
         }
 
-        // Ownership check
         const owns = await pool.query(
             `SELECT 1 FROM learners l JOIN deals d ON d.deal_number = l.deal_number
              WHERE l.learner_id = $1 AND d.facilitator_id = $2 AND d.is_deleted = FALSE`,
@@ -394,13 +401,6 @@ router.get('/api/facilitator/learners/:learnerId/attendance', async (req, res) =
 });
 
 // ── Shared helper: recorded attendance + computed missing-scheduled-day absences ──
-// Real rows come straight from attendance_records. On top of that, for any
-// learner with an attendance_schedules row, we check every scheduled day in
-// the range and — if no attendance_records row exists for that date — add a
-// synthetic "absent" row (is_computed: true) so gaps aren't silently missing
-// from the report just because the markAbsences cron hasn't caught up yet.
-// Nothing here is written to the DB — it's computed fresh on every request,
-// which doubles as a safe way to preview/"simulate" a report before exporting.
 async function getAttendanceReportRows(facilitatorId, { deal_number, from, to }) {
     const dealFilter = deal_number || null;
     const fromFilter = from || null;
@@ -496,10 +496,6 @@ router.get('/api/facilitator/attendance', async (req, res) => {
 });
 
 // ── GET /api/facilitator/attendance/report.pdf?deal_number=&from=&to= ─
-// Generates a downloadable PDF attendance report (sign-in / sign-out) for a
-// date range — the front end drives this with week/month presets or a
-// custom range, then hands the two dates straight through here. Rows flagged
-// is_computed are scheduled days with no captured record — shown as "absent*".
 router.get('/api/facilitator/attendance/report.pdf', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -548,7 +544,6 @@ router.get('/api/facilitator/attendance/report.pdf', async (req, res) => {
                .strokeColor('#d4d4cf').lineWidth(0.5).stroke();
         }
 
-        // Report header
         doc.font('Helvetica-Bold').fontSize(16).fillColor('#171717')
            .text('Nkanyezi Academy — Attendance Report', doc.page.margins.left, doc.y);
         doc.moveDown(0.4);
@@ -594,7 +589,6 @@ router.get('/api/facilitator/attendance/report.pdf', async (req, res) => {
 });
 
 // ── GET /api/facilitator/submissions?status=&deal_number=&search= ─
-// PoE / assessment submissions for the facilitator's learners
 router.get('/api/facilitator/submissions', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -673,7 +667,6 @@ router.post('/api/facilitator/submissions/:id/grade', async (req, res) => {
             return res.status(400).json({ success: false, message: 'A numeric score is required' });
         }
 
-        // Ownership check + fetch max_score for validation
         const owns = await pool.query(
             `SELECT asub.id, a.max_score
              FROM assessment_submissions asub
@@ -712,9 +705,6 @@ router.post('/api/facilitator/submissions/:id/grade', async (req, res) => {
 });
 
 // ── GET /api/facilitator/learners/:learnerId/feedback/draft ──────
-// Generates a categorized feedback draft (at-risk / watch / on-track) based
-// on live progress-vs-expected and attendance data — same risk logic used
-// on the deal roster and learner detail page.
 router.get('/api/facilitator/learners/:learnerId/feedback/draft', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -747,7 +737,6 @@ router.get('/api/facilitator/learners/:learnerId/feedback/draft', async (req, re
         }
         const l = learnerResult.rows[0];
 
-        // Same expected-% and risk logic used everywhere else
         const durationDays = (l.duration_months || 0) * 30;
         let expectedPct = null;
         if (l.deal_start_date && durationDays > 0) {
@@ -766,7 +755,6 @@ router.get('/api/facilitator/learners/:learnerId/feedback/draft', async (req, re
             else if (gap > 0) riskStatus = 'watch';
         }
 
-        // Attendance stats + most-frequent absence weekday, to describe the pattern
         const [statsResult, absentDayResult, facilitatorResult] = await Promise.all([
             pool.query(
                 `SELECT
@@ -817,8 +805,6 @@ router.get('/api/facilitator/learners/:learnerId/feedback/draft', async (req, re
 });
 
 // ── POST /api/facilitator/learners/:learnerId/feedback/send ──────
-// Sends the (possibly edited) draft from the signed-in facilitator's own
-// address to the learner, and logs it in the feedback table.
 router.post('/api/facilitator/learners/:learnerId/feedback/send', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -867,10 +853,11 @@ router.post('/api/facilitator/learners/:learnerId/feedback/send', async (req, re
             facilitatorEmail: facilitator.email,
         });
 
+        // facilitator_id added — required now that it's NOT NULL on the feedback table
         await pool.query(
-            `INSERT INTO feedback (from_user_id, to_learner_id, enrolment_id, feedback_type, subject, message, is_auto_generated, sent_at, delivery_method)
-             VALUES ($1, $2, $3, 'progress', $4, $5, TRUE, NOW(), 'email')`,
-            [facilitatorId, learnerId, learner.enrolment_id || null, subject, message]
+            `INSERT INTO feedback (from_user_id, to_learner_id, facilitator_id, enrolment_id, feedback_type, subject, message, is_auto_generated, sent_at, delivery_method)
+             VALUES ($1, $2, $3, $4, 'progress', $5, $6, TRUE, NOW(), 'email')`,
+            [facilitatorId, learnerId, facilitatorId, learner.enrolment_id || null, subject, message]
         );
 
         res.json({ success: true, message: `Feedback email sent to ${learner.email}` });
@@ -881,8 +868,6 @@ router.post('/api/facilitator/learners/:learnerId/feedback/send', async (req, re
 });
 
 // ── GET /api/facilitator/feedback/history?search=&deal_number= ───
-// Full log of feedback this facilitator has sent — message, sender,
-// receiver, and date/time — for the Feedback History page.
 router.get('/api/facilitator/feedback/history', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -936,9 +921,114 @@ router.get('/api/facilitator/feedback/history', async (req, res) => {
     }
 });
 
+// ── GET /api/facilitator/messages ─────────────────────────────────
+// All two-way threads (root messages + replies, both directions) across
+// this facilitator's learners. Separate from feedback/history above, which
+// stays as the log of categorized progress feedback the facilitator sent.
+router.get('/api/facilitator/messages', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const result = await pool.query(
+            `SELECT
+                f.id, f.parent_id, f.subject, f.message, f.feedback_type, f.from_role,
+                f.to_learner_id,
+                COALESCE(f.sent_at, f.created_at) AS sent_at,
+                sender.name AS from_name, sender.surname AS from_surname,
+                learner_u.name AS learner_name, learner_u.surname AS learner_surname,
+                d.deal_number, d.sponsor
+             FROM feedback f
+             JOIN users sender    ON sender.user_id = f.from_user_id
+             JOIN learners l      ON l.learner_id = f.to_learner_id
+             JOIN users learner_u ON learner_u.user_id = l.learner_id
+             JOIN deals d         ON d.deal_number = l.deal_number
+             WHERE f.facilitator_id = $1 AND d.is_deleted = FALSE
+             ORDER BY COALESCE(f.sent_at, f.created_at) ASC`,
+            [facilitatorId]
+        );
+        res.json({ success: true, messages: result.rows });
+    } catch (err) {
+        console.error('GET /api/facilitator/messages error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch messages' });
+    }
+});
+
+// ── POST /api/facilitator/messages ────────────────────────────────
+// Start a new thread to a specific learner — a quick message, distinct
+// from the categorized draft/email feedback flow above.
+router.post('/api/facilitator/messages', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { learnerId, subject, message } = req.body;
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRe.test(learnerId || '')) {
+            return res.status(400).json({ success: false, message: 'Invalid learner ID' });
+        }
+        if (!message || !message.trim()) {
+            return res.status(400).json({ success: false, message: 'Message cannot be empty' });
+        }
+
+        const owns = await pool.query(
+            `SELECT 1 FROM learners l JOIN deals d ON d.deal_number = l.deal_number
+             WHERE l.learner_id = $1 AND d.facilitator_id = $2 AND d.is_deleted = FALSE`,
+            [learnerId, facilitatorId]
+        );
+        if (!owns.rows.length) {
+            return res.status(404).json({ success: false, message: 'Learner not found or not in one of your deals' });
+        }
+
+        const inserted = await pool.query(
+            `INSERT INTO feedback (from_user_id, to_learner_id, facilitator_id, from_role, feedback_type, subject, message, is_auto_generated, sent_at, delivery_method)
+             VALUES ($1, $2, $3, 'facilitator', 'message', $4, $5, FALSE, NOW(), 'in-app')
+             RETURNING id, parent_id, subject, message, from_role, sent_at`,
+            [facilitatorId, learnerId, facilitatorId, subject?.trim() || null, message.trim()]
+        );
+
+        res.json({ success: true, message: inserted.rows[0] });
+    } catch (err) {
+        console.error('POST /api/facilitator/messages error:', err);
+        res.status(500).json({ success: false, message: 'Failed to send message' });
+    }
+});
+
+// ── POST /api/facilitator/messages/:id/reply ──────────────────────
+router.post('/api/facilitator/messages/:id/reply', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { id } = req.params;
+        const { message } = req.body;
+
+        if (!message || !message.trim()) {
+            return res.status(400).json({ success: false, message: 'Message cannot be empty' });
+        }
+
+        const { rows } = await pool.query(
+            `SELECT id, parent_id, to_learner_id, facilitator_id FROM feedback WHERE id = $1`,
+            [id]
+        );
+        if (!rows.length) {
+            return res.status(404).json({ success: false, message: 'Original message not found' });
+        }
+        const target = rows[0];
+        if (String(target.facilitator_id) !== String(facilitatorId)) {
+            return res.status(403).json({ success: false, message: 'Not your message thread' });
+        }
+        const rootId = target.parent_id || target.id;
+
+        const inserted = await pool.query(
+            `INSERT INTO feedback (from_user_id, to_learner_id, facilitator_id, from_role, feedback_type, parent_id, message, is_auto_generated, sent_at, delivery_method)
+             VALUES ($1, $2, $3, 'facilitator', 'message', $4, $5, FALSE, NOW(), 'in-app')
+             RETURNING id, parent_id, subject, message, from_role, sent_at`,
+            [facilitatorId, target.to_learner_id, facilitatorId, rootId, message.trim()]
+        );
+
+        res.json({ success: true, message: inserted.rows[0] });
+    } catch (err) {
+        console.error('POST /api/facilitator/messages/:id/reply error:', err);
+        res.status(500).json({ success: false, message: 'Failed to send reply' });
+    }
+});
+
 // ── GET /api/facilitator/learners/:learnerId/submissions ─────────
-// The work this learner has submitted — for the "Work submitted" section
-// on the learner detail page.
 router.get('/api/facilitator/learners/:learnerId/submissions', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -978,8 +1068,6 @@ router.get('/api/facilitator/learners/:learnerId/submissions', async (req, res) 
 });
 
 // ── GET /api/facilitator/learners/:learnerId/compliance-report.pdf ─
-// Full compliance report: identity/qualification, attendance log,
-// feedback history, and unit submissions (0 + not graded if ungraded).
 router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -1067,7 +1155,6 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
             });
         }
 
-        // ── Header ──
         doc.font('Helvetica-Bold').fontSize(16).fillColor('#171717')
            .text('Nkanyezi Academy — Learner Compliance Report');
         doc.moveDown(0.6);
@@ -1083,7 +1170,6 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
            .text(`Enrolment status: ${profile.enrolment_status || '—'} · Progress: ${profile.progress_pct != null ? Math.round(profile.progress_pct) + '%' : '—'}`)
            .text(`Generated: ${new Date().toLocaleString('en-ZA')}`);
 
-        // ── Attendance log ──
         sectionTitle('Attendance log');
         drawTable(
             [
@@ -1098,7 +1184,6 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
             'No attendance records on file.'
         );
 
-        // ── Feedback history ──
         sectionTitle('Feedback history');
         drawTable(
             [
@@ -1112,7 +1197,6 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
             'No feedback sent yet.'
         );
 
-        // ── Units submitted / graded ──
         sectionTitle('Units — submissions and grades');
         drawTable(
             [

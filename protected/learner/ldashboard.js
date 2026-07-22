@@ -197,11 +197,13 @@ function timeAgo(dateStr) {
     return `${days} days ago`;
 }
 
-function renderFeedbackItem(f) {
-    const fromName = [f.from_name, f.from_surname].filter(Boolean).join(' ') || 'Facilitator';
+function renderMessage(f) {
+    const fromName = f.from_role === 'learner'
+        ? 'You'
+        : [f.from_name, f.from_surname].filter(Boolean).join(' ') || 'Facilitator';
     return `
-      <div class="notif-item">
-        <div class="ndot" style="background:#185fa5"></div>
+      <div class="notif-item" style="${f.from_role === 'learner' ? 'opacity:.85' : ''}">
+        <div class="ndot" style="background:${f.from_role === 'learner' ? '#1d9e75' : '#185fa5'}"></div>
         <div>
           <div class="ntext"><strong>${fromName}</strong>${f.subject ? ' — ' + f.subject : ''}</div>
           <div class="ntext" style="color:var(--text-secondary);margin-top:2px">${f.message}</div>
@@ -210,13 +212,128 @@ function renderFeedbackItem(f) {
       </div>`;
 }
 
+function groupThreads(items) {
+    const roots = items.filter(f => !f.parent_id).sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+    const repliesByRoot = {};
+    items.filter(f => f.parent_id).forEach(f => {
+        (repliesByRoot[f.parent_id] ||= []).push(f);
+    });
+    Object.values(repliesByRoot).forEach(list => list.sort((a, b) => new Date(a.sent_at) - new Date(b.sent_at)));
+    return roots.map(root => ({ root, replies: repliesByRoot[root.id] || [] }));
+}
+
+function renderThread(thread) {
+    const replyHtml = thread.replies.map(r => `<div style="margin-left:20px">${renderMessage(r)}</div>`).join('');
+    return `
+      <div class="thread" style="border-bottom:1px solid #eee;padding-bottom:10px;margin-bottom:10px">
+        ${renderMessage(thread.root)}
+        ${replyHtml}
+        <div style="margin-left:20px;margin-top:6px">
+          <button class="hbtn" style="font-size:11px;padding:4px 10px" onclick="toggleReplyBox('${thread.root.id}')">Reply</button>
+          <div id="reply-box-${thread.root.id}" style="display:none;margin-top:6px">
+            <textarea id="reply-input-${thread.root.id}" rows="2" style="width:100%;font-size:12.5px;padding:6px;border:1px solid #ddd;border-radius:6px"></textarea>
+            <button class="hbtn" style="font-size:11px;padding:4px 10px;margin-top:4px" onclick="sendReply('${thread.root.id}', this)">Send</button>
+          </div>
+        </div>
+      </div>`;
+}
+
+function toggleReplyBox(rootId) {
+    const box = document.getElementById(`reply-box-${rootId}`);
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+/* Marks a send button as sending/failed. Success doesn't need a branch here —
+   the calling function re-renders the whole list on success, which replaces
+   this button entirely with a fresh one. */
+function setButtonSending(btn, isSending) {
+    if (isSending) {
+        btn.dataset.originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        btn.style.background = '#d4d4d4';
+        btn.style.color = '#666';
+        btn.style.cursor = 'not-allowed';
+    }
+}
+
+function setButtonFailed(btn) {
+    btn.disabled = false;
+    btn.textContent = 'Failed — retry';
+    btn.style.background = '#e24b4a';
+    btn.style.color = '#fff';
+    btn.style.cursor = 'pointer';
+    setTimeout(() => {
+        btn.textContent = btn.dataset.originalText || 'Send';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.cursor = '';
+    }, 2500);
+}
+
+async function sendReply(rootId, btn) {
+    const input = document.getElementById(`reply-input-${rootId}`);
+    const message = input.value.trim();
+    if (!message) return;
+
+    setButtonSending(btn, true);
+    try {
+        const res = await fetch(`/api/learner/feedback/${rootId}/reply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        if (!res.ok) throw new Error('Reply failed');
+        input.value = '';
+        openMessagesModal(); // re-renders the whole list, replacing this button with a fresh one
+    } catch (err) {
+        console.error('sendReply error:', err);
+        setButtonFailed(btn);
+    }
+}
+
+function toggleComposeBox() {
+    const box = document.getElementById('compose-box');
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+async function sendNewMessage(btn) {
+    const subject = document.getElementById('compose-subject').value.trim();
+    const message = document.getElementById('compose-message').value.trim();
+    if (!message) return;
+
+    setButtonSending(btn, true);
+    try {
+        const res = await fetch('/api/learner/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject, message })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Send failed');
+        document.getElementById('compose-subject').value = '';
+        document.getElementById('compose-message').value = '';
+        document.getElementById('compose-box').style.display = 'none';
+        // reset the button before the box is hidden/reused next time it's opened
+        btn.disabled = false;
+        btn.textContent = btn.dataset.originalText || 'Send';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.cursor = '';
+        openMessagesModal();
+    } catch (err) {
+        console.error('sendNewMessage error:', err);
+        setButtonFailed(btn);
+    }
+}
+
 async function loadFeedbackPreview() {
     const previewEl = document.getElementById('feedback-preview');
     const countEl = document.getElementById('dash-feedback-count');
     const subEl = document.getElementById('dash-feedback-sub');
 
     try {
-        const res = await fetch('/api/learner/feedback?limit=3');
+        const res = await fetch('/api/learner/feedback');
         if (!res.ok) throw new Error('Failed to load feedback');
         const data = await res.json();
         const items = data.feedback || [];
@@ -228,16 +345,16 @@ async function loadFeedbackPreview() {
             return;
         }
 
-        previewEl.innerHTML = items.map(renderFeedbackItem).join('');
+        const latest = [...items].sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at)).slice(0, 3);
+        previewEl.innerHTML = latest.map(renderMessage).join('');
         countEl.textContent = items.length;
-        subEl.textContent = `Latest: ${timeAgo(items[0].sent_at)}`;
+        subEl.textContent = `Latest: ${timeAgo(latest[0].sent_at)}`;
     } catch (err) {
         console.error('loadFeedbackPreview error:', err);
         previewEl.innerHTML = '<div style="padding:16px 18px;font-size:12.5px;color:var(--text-danger)">Could not load feedback.</div>';
     }
 }
 
-/* ── Messages modal — full feedback history ── */
 async function openMessagesModal() {
     const modal = document.getElementById('messages-modal');
     const listEl = document.getElementById('messages-list');
@@ -248,10 +365,10 @@ async function openMessagesModal() {
         const res = await fetch('/api/learner/feedback');
         if (!res.ok) throw new Error('Failed to load messages');
         const data = await res.json();
-        const items = data.feedback || [];
+        const threads = groupThreads(data.feedback || []);
 
-        listEl.innerHTML = items.length
-            ? items.map(renderFeedbackItem).join('')
+        listEl.innerHTML = threads.length
+            ? threads.map(renderThread).join('')
             : '<div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">No messages yet.</div>';
     } catch (err) {
         console.error('openMessagesModal error:', err);

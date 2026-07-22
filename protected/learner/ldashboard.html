@@ -1,145 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Learner</title>
-    <link rel="stylesheet" href="/shared/ldashboard.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learner</title>
+  <link rel="stylesheet" href="/shared/ldashboard.css">
 </head>
+
 <body>
-    <!-- ═══════════ HEADER ═══════════ -->
-<header>
-  <span class="logo">Nkanyezi Academy <small>Learner Portal</small></span>
-  <button class="hbtn">Help</button>
-  <button class="hbtn" onclick="handleLogout()">Logout</button>
-  <div class="av" id="header-initials">--</div>
-</header>
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header>
+    <span class="logo">Nkanyezi Academy <small>Learner Portal</small></span>
+    <button class="hbtn">Help</button>
+    <button class="hbtn" onclick="handleLogout()">Logout</button>
+    <div class="av" id="header-initials">--</div>
+  </header>
 
-<div class="layout">
+  <div class="layout">
 
-  <!-- ═══════════ SIDEBAR ═══════════ -->
-  <aside class="sidebar">
-    <div class="slabel">My learning</div>
-    <div class="sitem active" onclick="setActive(this)">Dashboard</div>
-    <div class="sitem" onclick="navigateTo(this, '/shared/materials.html')">Materials</div>
-    <div class="sitem" onclick="setActive(this)">Assessments</div>
-    <div class="slabel">My record</div>
-    <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
-    <div class="sitem" onclick="setActive(this)">Results</div>
-    <div class="slabel">Support</div>
-    <div class="sitem" onclick="openMessagesModal()">Messages</div>
-  </aside>
+    <!-- ═══════════ SIDEBAR ═══════════ -->
+    <aside class="sidebar">
+      <div class="slabel">My learning</div>
+      <div class="sitem active" onclick="setActive(this)">Dashboard</div>
+      <div class="sitem" onclick="navigateTo(this, '/shared/materials.html')">Materials</div>
+      <div class="sitem" onclick="setActive(this)">Assessments</div>
+      <div class="slabel">My record</div>
+      <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
+      <div class="sitem" onclick="setActive(this)">Results</div>
+      <div class="slabel">Support</div>
+      <div class="sitem" onclick="openMessagesModal()">Messages</div>
+    </aside>
 
-  <!-- ═══════════ MAIN ═══════════ -->
-  <main>
+    <!-- ═══════════ MAIN ═══════════ -->
+    <main>
 
-    <!-- Welcome bar — qualification name is real, fetched from the session's active enrolment -->
-    <div class="welcome-bar">
-      <div class="welcome-av" id="welcome-av-initials"></div>
-      <div>
-        <div class="welcome-name" id="welcome-name">Loading…</div>
-        <div class="welcome-sub" id="welcome-sub">Loading your qualification…</div>
+      <!-- Welcome bar — qualification name is real, fetched from the session's active enrolment -->
+      <div class="welcome-bar">
+        <div class="welcome-av" id="welcome-av-initials"></div>
+        <div>
+          <div class="welcome-name" id="welcome-name">Loading…</div>
+          <div class="welcome-sub" id="welcome-sub">Loading your qualification…</div>
+        </div>
+        <a class="attend-btn" href="/learner/attendance.html" id="attend-btn">
+          <div class="attend-dot" id="attend-dot"></div>
+          <span id="attend-btn-label">Capture attendance</span>
+        </a>
       </div>
-      <a class="attend-btn" href="/learner/attendance.html" id="attend-btn">
-        <div class="attend-dot" id="attend-dot"></div>
-        <span id="attend-btn-label">Capture attendance</span>
-      </a>
-    </div>
 
-    <!-- Stat cards — attendance rate is real (unchanged logic); the second card
+      <!-- Stat cards — attendance rate is real (unchanged logic); the second card
          reflects feedback, the only other thing this dashboard tracks -->
-    <div class="stats-row" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-      <div class="sc">
-        <div class="sc-label">Attendance rate</div>
-        <div class="sc-val" id="dash-attend-rate">—</div>
-        <div class="sc-sub c-green" id="dash-attend-sub">Loading…</div>
-      </div>
-      <div class="sc">
-        <div class="sc-label">Latest feedback</div>
-        <div class="sc-val" id="dash-feedback-count">—</div>
-        <div class="sc-sub" id="dash-feedback-sub" style="color:var(--text-secondary)">Loading…</div>
-      </div>
-    </div>
-
-    <!-- Two-column layout -->
-    <div class="cols">
-
-      <!-- LEFT COLUMN -->
-      <div>
-
-        <!-- Feedback -->
-        <div class="panel">
-          <div class="ph">
-            <span class="pt">Latest feedback</span>
-            <a href="#" onclick="openMessagesModal(); return false;" class="view-attend-link">View all →</a>
-          </div>
-          <div id="feedback-preview">
-            <div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">Loading…</div>
-          </div>
+      <div class="stats-row" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="sc">
+          <div class="sc-label">Attendance rate</div>
+          <div class="sc-val" id="dash-attend-rate">—</div>
+          <div class="sc-sub c-green" id="dash-attend-sub">Loading…</div>
         </div>
-
-        <!-- Quick access to Materials -->
-        <div class="panel">
-          <div class="ph"><span class="pt">Materials</span></div>
-          <div style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:12.5px;color:var(--text-secondary)">Read or download your qualification's materials.</span>
-            <a href="/shared/materials.html" class="attend-btn" style="background:var(--blue)">Open Materials</a>
-          </div>
+        <div class="sc">
+          <div class="sc-label">Latest feedback</div>
+          <div class="sc-val" id="dash-feedback-count">—</div>
+          <div class="sc-sub" id="dash-feedback-sub" style="color:var(--text-secondary)">Loading…</div>
         </div>
+      </div>
 
-      </div><!-- /left col -->
+      <!-- Two-column layout -->
+      <div class="cols">
 
-      <!-- RIGHT COLUMN -->
-      <div>
+        <!-- LEFT COLUMN -->
+        <div>
 
-        <!-- Attendance summary panel — UNCHANGED, do not restyle -->
-        <div class="panel">
-          <div class="ph">
-            <span class="pt">Attendance log</span>
-            <span class="ps" id="cal-month">April 2025</span>
-          </div>
-          <div style="padding:14px 18px">
-            <div class="cal-grid" style="margin-bottom:6px">
-              <span style="font-size:9px;color:var(--text-tertiary);text-align:center">M</span>
-              <span style="font-size:9px;color:var(--text-tertiary);text-align:center">T</span>
-              <span style="font-size:9px;color:var(--text-tertiary);text-align:center">W</span>
-              <span style="font-size:9px;color:var(--text-tertiary);text-align:center">T</span>
-              <span style="font-size:9px;color:var(--text-tertiary);text-align:center">F</span>
-              <span style="font-size:9px;color:var(--text-tertiary);text-align:center">S</span>
-              <span style="font-size:9px;color:var(--text-tertiary);text-align:center">S</span>
+          <!-- Feedback -->
+          <div class="panel">
+            <div class="ph">
+              <span class="pt">Latest feedback</span>
+              <a href="#" onclick="openMessagesModal(); return false;" class="view-attend-link">View all →</a>
             </div>
-            <div class="cal-grid" id="cal-grid"></div>
+            <div id="feedback-preview">
+              <div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">Loading…</div>
+            </div>
           </div>
-          <div class="cal-legend">
-            <span><span class="leg-dot" style="background:#1d9e75"></span>Present</span>
-            <span><span class="leg-dot" style="background:#e24b4a"></span>Absent</span>
-            <span><span class="leg-dot" style="background:var(--bg-secondary)"></span>N/A</span>
+
+          <!-- Quick access to Materials -->
+          <div class="panel">
+            <div class="ph"><span class="pt">Materials</span></div>
+            <div style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12.5px;color:var(--text-secondary)">Read or download your qualification's
+                materials.</span>
+              <a href="/shared/materials.html" class="attend-btn" style="background:var(--blue)">Open Materials</a>
+            </div>
           </div>
-          <div style="padding:0 18px 14px;text-align:right">
-            <a href="/learner/attendance.html" class="view-attend-link">View full attendance →</a>
+
+        </div><!-- /left col -->
+
+        <!-- RIGHT COLUMN -->
+        <div>
+
+          <!-- Attendance summary panel — UNCHANGED, do not restyle -->
+          <div class="panel">
+            <div class="ph">
+              <span class="pt">Attendance log</span>
+              <span class="ps" id="cal-month">April 2025</span>
+            </div>
+            <div style="padding:14px 18px">
+              <div class="cal-grid" style="margin-bottom:6px">
+                <span style="font-size:9px;color:var(--text-tertiary);text-align:center">M</span>
+                <span style="font-size:9px;color:var(--text-tertiary);text-align:center">T</span>
+                <span style="font-size:9px;color:var(--text-tertiary);text-align:center">W</span>
+                <span style="font-size:9px;color:var(--text-tertiary);text-align:center">T</span>
+                <span style="font-size:9px;color:var(--text-tertiary);text-align:center">F</span>
+                <span style="font-size:9px;color:var(--text-tertiary);text-align:center">S</span>
+                <span style="font-size:9px;color:var(--text-tertiary);text-align:center">S</span>
+              </div>
+              <div class="cal-grid" id="cal-grid"></div>
+            </div>
+            <div class="cal-legend">
+              <span><span class="leg-dot" style="background:#1d9e75"></span>Present</span>
+              <span><span class="leg-dot" style="background:#e24b4a"></span>Absent</span>
+              <span><span class="leg-dot" style="background:var(--bg-secondary)"></span>N/A</span>
+            </div>
+            <div style="padding:0 18px 14px;text-align:right">
+              <a href="/learner/attendance.html" class="view-attend-link">View full attendance →</a>
+            </div>
           </div>
+
+        </div><!-- /right col -->
+      </div><!-- /cols -->
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="messages-modal" style="display:none">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span class="pt">Messages from your facilitators</span>
+        <div>
+          <button class="hbtn" onclick="toggleComposeBox()">New message</button>
+          <button class="hbtn" onclick="closeMessagesModal()">Close</button>
         </div>
-
-      </div><!-- /right col -->
-    </div><!-- /cols -->
-  </main>
-</div>
-
-<!-- Messages modal -->
-<div class="modal-overlay" id="messages-modal" style="display:none">
-  <div class="modal-box">
-    <div class="modal-header">
-      <span class="pt">Messages from your facilitators</span>
-      <button class="hbtn" onclick="closeMessagesModal()">Close</button>
-    </div>
-    <div id="messages-list" class="modal-body">
-      <div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">Loading…</div>
+      </div>
+      <div id="compose-box" style="display:none;padding:12px 18px;border-bottom:1px solid #eee">
+        <input id="compose-subject" type="text" placeholder="Subject (optional)"
+          style="width:100%;font-size:12.5px;padding:6px;border:1px solid #ddd;border-radius:6px;margin-bottom:6px">
+        <textarea id="compose-message" rows="3" placeholder="Message to your facilitator…"
+          style="width:100%;font-size:12.5px;padding:6px;border:1px solid #ddd;border-radius:6px"></textarea>
+        <button class="hbtn" style="margin-top:6px" onclick="sendNewMessage(this)">Send</button>
+      </div>
+      <div id="messages-list" class="modal-body">
+        <div style="padding:16px 18px;font-size:12.5px;color:var(--text-tertiary)">Loading…</div>
+      </div>
     </div>
   </div>
-</div>
 
-<footer>Nkanyezi Learnership Management System &copy; 2025</footer>
+  <footer>Nkanyezi Learnership Management System &copy; 2025</footer>
 
-<script src="ldashboard.js"></script>
+  <script src="ldashboard.js"></script>
 </body>
+
 </html>

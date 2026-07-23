@@ -144,6 +144,37 @@ router.post('/api/materials/:id/replace', isAuthenticated, isRole('admin'), uplo
   }
 });
 
+// GET /api/admin/materials/:materialId/view?download=1
+// Admin equivalent of the learner view route below — no enrolment check
+// (admins aren't enrolled in anything) and no material_views insert
+// (that table tracks learner progress, which doesn't apply to an admin
+// previewing/downloading a file they manage). Gated by isRole('admin')
+// so this never becomes a bypass for the learner-only route's access rules.
+//
+// Test:  curl -b cookie.txt http://localhost:3000/api/admin/materials/<id>/view
+//        curl -b cookie.txt http://localhost:3000/api/admin/materials/<id>/view?download=1
+router.get('/api/admin/materials/:materialId/view', isAuthenticated, isRole('admin'), async (req, res) => {
+  try {
+    const { materialId } = req.params;
+    const wantsDownload = req.query.download === '1';
+
+    const { rows } = await pool.query(
+      `SELECT id, file_url, file_name, title FROM materials WHERE id = $1`,
+      [materialId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Material not found' });
+
+    const url = getSasUrl(rows[0].file_url, {
+      download: wantsDownload,
+      fileName: rows[0].file_name,
+    });
+
+    res.json({ success: true, url, file_name: rows[0].file_name });
+  } catch (err) {
+    console.error('GET /api/admin/materials/:materialId/view error:', err);
+    res.status(500).json({ success: false, message: 'Failed to open material' });
+  }
+});
 
 // GET /api/learner/materials
 // Resolves the calling learner's ACTIVE qualification from their
@@ -254,4 +285,5 @@ router.get('/api/learner/materials/:materialId/view', isAuthenticated, isRole('l
     res.status(500).json({ success: false, message: 'Failed to open material' });
   }
 });
+
 module.exports = router;

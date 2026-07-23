@@ -9,23 +9,15 @@
 </head>
 <body>
     <header>
-      <span class="logo">Nkanyezi Academy <small>Learner Portal</small></span>
+      <span class="logo">Nkanyezi Academy <small id="portal-label">Portal</small></span>
       <button class="hbtn">Help</button>
       <button class="hbtn" onclick="handleLogout()">Logout</button>
       <div class="av" id="header-initials">--</div>
     </header>
 
     <div class="layout">
-      <aside class="sidebar">
-        <div class="slabel">My learning</div>
-        <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Dashboard</div>
-        <div class="sitem active" onclick="setActive(this)">Materials</div>
-        <div class="sitem" onclick="setActive(this)">Assessments</div>
-        <div class="slabel">My record</div>
-        <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
-        <div class="sitem" onclick="setActive(this)">Results</div>
-        <div class="slabel">Support</div>
-        <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Messages</div>
+      <aside class="sidebar" id="mat-sidebar">
+        <!-- Populated by renderSidebar() in materials.js once role is known -->
       </aside>
 
       <main>
@@ -50,5 +42,7 @@
     <footer>Nkanyezi Learnership Management System &copy; 2025</footer>
 
     <script src="materials.js"></script>
+    <script src="quiz-builder.js"></script>
+    <script src="project-builder.js"></script>
 </body>
 </html>

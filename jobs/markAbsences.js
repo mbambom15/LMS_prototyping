@@ -2,12 +2,13 @@
 //
 // Runs once a day, after the sign-out window closes (15:00 SAST).
 // Marks any learner as 'absent' for today if:
-//   1. Today matches one of their qualification's scheduled_day_1/2, AND
-//   2. They have an active enrolment on that qualification, AND
+//   1. Today matches one of their day_of_week_1/2 in attendance_schedules, AND
+//   2. They have an active enrolment (any qualification), AND
 //   3. They have no attendance_records row for today already.
 //
-// No sessions table involved — schedule lives on qualifications,
-// attendance lives standalone keyed on (learner_id, attendance_date).
+// Schedule lives per-learner on attendance_schedules — NOT on
+// qualifications. Attendance lives standalone keyed on
+// (learner_id, attendance_date).
 
 const pool = require('../db/pool');
 
@@ -30,16 +31,16 @@ async function markAbsences() {
         await client.query('BEGIN');
 
         // EXTRACT(DOW FROM date) in Postgres: 0=Sunday..6=Saturday.
-        // Our scheduled_day_1/2 use 0=Monday..6=Sunday, so convert:
+        // Our day_of_week_1/2 use 0=Monday..6=Sunday, so convert:
         // postgres_dow -> our_dow is ((postgres_dow + 6) % 7)
         const result = await client.query(
             `INSERT INTO attendance_records (learner_id, attendance_date, status, capture_method)
              SELECT DISTINCT l.learner_id, $1::date, 'absent', 'system_auto'
              FROM learners l
-             JOIN enrolments e   ON e.learner_id = l.learner_id AND e.status = 'active'
-             JOIN qualifications q ON q.qualification_id = e.qualification_id
+             JOIN enrolments e ON e.learner_id = l.learner_id AND e.status = 'active'
+             JOIN attendance_schedules s ON s.learner_id = l.learner_id
              WHERE l.status = 'active'
-               AND ((EXTRACT(DOW FROM $1::date)::int + 6) % 7) IN (q.scheduled_day_1, q.scheduled_day_2)
+               AND ((EXTRACT(DOW FROM $1::date)::int + 6) % 7) IN (s.day_of_week_1, s.day_of_week_2)
                AND NOT EXISTS (
                  SELECT 1 FROM attendance_records ar
                  WHERE ar.learner_id = l.learner_id

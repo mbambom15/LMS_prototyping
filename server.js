@@ -41,6 +41,8 @@ app.use(dashboardRoutes);
 app.use(require('./routes/materials'));
 app.use(require('./routes/learner'));
 app.use(require('./routes/facilitator'));
+app.use(require('./routes/quizzes'));
+app.use(require('./routes/projects'));
 // Protect /admin
 app.use('/admin', isAuthenticated, isRole('admin'), express.static('protected/admin'));
 

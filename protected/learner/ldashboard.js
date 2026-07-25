@@ -20,7 +20,7 @@ function handleLogout() {
 /* ── Load user from session via /api/me ── */
 async function loadUser() {
     try {
-        const res  = await fetch('/api/me');
+        const res = await fetch('/api/me');
         if (!res.ok) {
             // Not authenticated — send back to login
             window.location.href = '/login';
@@ -60,6 +60,33 @@ async function loadQualification() {
     }
 }
 
+/* ── Load progress vs expected (deal start_date + qualification duration) ── */
+async function loadProgress() {
+    const el = document.getElementById('welcome-progress');
+    try {
+        const res = await fetch('/api/learner/progress');
+        if (!res.ok) throw new Error('Failed to load progress');
+        const data = await res.json();
+        const p = data.progress;
+
+        if (!p || p.expected_pct === null) {
+            el.textContent = '';
+            return;
+        }
+
+        if (p.is_behind) {
+            el.style.color = '#e24b4a';
+            el.textContent = `Progress: ${p.actual_pct}% — Behind (expected ${p.expected_pct}%)`;
+        } else {
+            el.style.color = '#1d9e75';
+            el.textContent = `Progress: ${p.actual_pct}% — On track (expected ${p.expected_pct}%)`;
+        }
+    } catch (err) {
+        console.error('loadProgress error:', err);
+        el.textContent = '';
+    }
+}
+
 /* ── Load today's attendance status to update the button — UNCHANGED ── */
 async function loadTodayStatus() {
     try {
@@ -67,22 +94,22 @@ async function loadTodayStatus() {
         if (!res.ok) return;
         const data = await res.json();
 
-        const dot   = document.getElementById('attend-dot');
+        const dot = document.getElementById('attend-dot');
         const label = document.getElementById('attend-btn-label');
-        const btn   = document.getElementById('attend-btn');
+        const btn = document.getElementById('attend-btn');
 
         if (data.signedIn && data.signedOut) {
-            dot.style.background   = '#1d9e75';
-            label.textContent      = 'Attendance recorded ✓';
-            btn.style.background   = '#e6f7ec';
-            btn.style.color        = '#0f7b4c';
-            btn.style.borderColor  = '#1d9e75';
+            dot.style.background = '#1d9e75';
+            label.textContent = 'Attendance recorded ✓';
+            btn.style.background = '#e6f7ec';
+            btn.style.color = '#0f7b4c';
+            btn.style.borderColor = '#1d9e75';
         } else if (data.signedIn) {
             dot.style.background = '#f59e0b';
-            label.textContent    = 'Sign out when leaving';
+            label.textContent = 'Sign out when leaving';
         } else {
             dot.style.background = '#e24b4a';
-            label.textContent    = 'Capture attendance';
+            label.textContent = 'Capture attendance';
         }
     } catch {
         // API not ready — button stays as default
@@ -94,29 +121,29 @@ async function loadAttendanceRate() {
     try {
         const res = await fetch('/api/attendance/history');
         if (!res.ok) return;
-        const data    = await res.json();
+        const data = await res.json();
         const records = data.records || [];
 
-        const sched   = records.filter(r => r.scheduled);
+        const sched = records.filter(r => r.scheduled);
         const present = sched.filter(r => r.status === 'present').length;
-        const late    = sched.filter(r => r.status === 'late').length;
-        const total   = sched.length;
-        const rate    = total ? Math.round(((present + late) / total) * 100) : null;
+        const late = sched.filter(r => r.status === 'late').length;
+        const total = sched.length;
+        const rate = total ? Math.round(((present + late) / total) * 100) : null;
 
         const rateEl = document.getElementById('dash-attend-rate');
-        const subEl  = document.getElementById('dash-attend-sub');
+        const subEl = document.getElementById('dash-attend-sub');
 
         if (rate === null) {
             rateEl.textContent = '—';
-            subEl.textContent  = 'No data yet';
+            subEl.textContent = 'No data yet';
         } else {
             rateEl.textContent = rate + '%';
             if (rate >= 80) {
-                subEl.textContent  = 'Above minimum';
-                subEl.style.color  = 'var(--c-green, #0f7b4c)';
+                subEl.textContent = 'Above minimum';
+                subEl.style.color = 'var(--c-green, #0f7b4c)';
             } else {
-                subEl.textContent  = 'Below 80% minimum';
-                subEl.style.color  = '#b91c1c';
+                subEl.textContent = 'Below 80% minimum';
+                subEl.style.color = '#b91c1c';
             }
         }
     } catch {
@@ -126,9 +153,9 @@ async function loadAttendanceRate() {
 
 /* ── Build attendance calendar for current month — UNCHANGED ── */
 async function buildCalendar() {
-    const grid  = document.getElementById('cal-grid');
-    const now   = new Date();
-    const year  = now.getFullYear();
+    const grid = document.getElementById('cal-grid');
+    const now = new Date();
+    const year = now.getFullYear();
     const month = now.getMonth();
     const today = now.getDate();
 
@@ -137,11 +164,11 @@ async function buildCalendar() {
 
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDow = new Date(year, month, 1).getDay();
-    const offset   = (firstDow + 6) % 7;
+    const offset = (firstDow + 6) % 7;
 
     let presentDays = [];
-    let lateDays    = [];
-    let absentDays  = [];
+    let lateDays = [];
+    let absentDays = [];
 
     try {
         const res = await fetch('/api/attendance/history');
@@ -169,13 +196,13 @@ async function buildCalendar() {
         const cell = document.createElement('div');
         cell.classList.add('cal-day');
 
-        let bg    = 'var(--bg-secondary)';
+        let bg = 'var(--bg-secondary)';
         let color = 'var(--text-tertiary)';
-        let fw    = '400';
+        let fw = '400';
         let title = `${d} — No session`;
 
-        if (presentDays.includes(d))     { bg = '#1d9e75'; color = '#fff'; title = `${d} — Present`; }
-        else if (lateDays.includes(d))   { bg = '#f59e0b'; color = '#fff'; title = `${d} — Late`; }
+        if (presentDays.includes(d)) { bg = '#1d9e75'; color = '#fff'; title = `${d} — Present`; }
+        else if (lateDays.includes(d)) { bg = '#f59e0b'; color = '#fff'; title = `${d} — Late`; }
         else if (absentDays.includes(d)) { bg = '#e24b4a'; color = '#fff'; title = `${d} — Absent`; }
 
         if (d === today) { fw = '700'; }
@@ -183,7 +210,7 @@ async function buildCalendar() {
         cell.style.cssText = `background:${bg};color:${color};font-weight:${fw};` +
             (d === today ? 'outline:2px solid #185fa5;outline-offset:1px;' : '');
         cell.textContent = d;
-        cell.title       = title;
+        cell.title = title;
         grid.appendChild(cell);
     }
 }
@@ -384,6 +411,7 @@ function closeMessagesModal() {
 window.addEventListener('DOMContentLoaded', async () => {
     await loadUser();
     loadQualification();
+    loadProgress();
     loadTodayStatus();
     loadAttendanceRate();
     buildCalendar();

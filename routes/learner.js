@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
 const { isAuthenticated, isRole } = require('../middleware/auth');
+const { calculateExpectedProgress } = require('../utils/progressCalculator');
 
 router.get('/api/learner/qualification', isAuthenticated, isRole('learner'), async (req, res) => {
   try {
@@ -19,6 +20,47 @@ router.get('/api/learner/qualification', isAuthenticated, isRole('learner'), asy
   } catch (err) {
     console.error('GET /api/learner/qualification error:', err);
     res.status(500).json({ success: false, message: 'Failed to load qualification' });
+  }
+});
+
+// ── GET /api/learner/progress ─────────────────────────────────────
+// Actual progress (enrolments.progress_pct) vs expected progress,
+// calculated daily from the learner's deal start_date and the
+// qualification's duration_months — same formula as the facilitator
+// portal's expected-progress calculator.
+router.get('/api/learner/progress', isAuthenticated, isRole('learner'), async (req, res) => {
+  try {
+    const learnerId = req.session.user.id;
+    const { rows } = await pool.query(
+      `SELECT e.progress_pct, d.start_date AS deal_start_date, q.duration_months
+       FROM enrolments e
+       JOIN learners l ON l.learner_id = e.learner_id
+       LEFT JOIN deals d ON d.deal_number = l.deal_number
+       LEFT JOIN qualifications q ON q.qualification_id = e.qualification_id
+       WHERE e.learner_id = $1 AND e.status = 'active'
+       LIMIT 1`,
+      [learnerId]
+    );
+
+    if (!rows.length) {
+      return res.json({ success: true, progress: null });
+    }
+
+    const row = rows[0];
+    const actualPct = row.progress_pct != null ? Math.round(row.progress_pct) : 0;
+    const expectedPct = calculateExpectedProgress(row.deal_start_date, row.duration_months);
+
+    res.json({
+      success: true,
+      progress: {
+        actual_pct: actualPct,
+        expected_pct: expectedPct,
+        is_behind: expectedPct !== null ? actualPct < expectedPct : false,
+      },
+    });
+  } catch (err) {
+    console.error('GET /api/learner/progress error:', err);
+    res.status(500).json({ success: false, message: 'Failed to load progress' });
   }
 });
 

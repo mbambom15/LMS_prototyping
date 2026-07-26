@@ -30,7 +30,7 @@ const SIDEBARS = {
       <div class="slabel">My learning</div>
       <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Dashboard</div>
       <div class="sitem active" onclick="setActive(this)">Materials</div>
-      <div class="sitem" onclick="setActive(this)">Assessments</div>
+      <div class="sitem" onclick="navigateTo(this, '/learner/assessments.html')">Assessments</div>
       <div class="slabel">My record</div>
       <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
       <div class="sitem" onclick="setActive(this)">Results</div>

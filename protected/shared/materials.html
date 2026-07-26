@@ -1,48 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Material — Nkanyezi Academy</title>
-    <link rel="stylesheet" href="ldashboard.css">
-    <link rel="stylesheet" href="materials.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Material — Nkanyezi Academy</title>
+  <link rel="stylesheet" href="ldashboard.css">
+  <link rel="stylesheet" href="materials.css">
 </head>
+
 <body>
-    <header>
-      <span class="logo">Nkanyezi Academy <small id="portal-label">Portal</small></span>
-      <button class="hbtn">Help</button>
-      <button class="hbtn" onclick="handleLogout()">Logout</button>
-      <div class="av" id="header-initials">--</div>
-    </header>
+  <header>
+    <span class="logo">Nkanyezi Academy <small id="portal-label">Portal</small></span>
+    <button class="hbtn">Help</button>
+    <button class="hbtn" onclick="handleLogout()">Logout</button>
+    <div class="av" id="header-initials">--</div>
+  </header>
 
-    <div class="layout">
-      <aside class="sidebar" id="mat-sidebar">
-        <!-- Populated by renderSidebar() in materials.js once role is known -->
-      </aside>
+  <div class="layout">
+    <aside class="sidebar" id="mat-sidebar">
+      <!-- Populated by renderSidebar() in materials.js once role is known -->
+    </aside>
 
-      <main>
-        <div class="mat-page-head">
-          <h1 id="qual-title">My Material</h1>
-          <p id="qual-sub" class="mat-page-sub">Loading your qualification…</p>
+    <main>
+      <div class="mat-page-head">
+        <h1 id="qual-title">My Material</h1>
+        <p id="qual-sub" class="mat-page-sub">Loading your qualification…</p>
+      </div>
+
+      <div class="mat-overall panel" id="mat-overall" style="display:none">
+        <div class="mat-overall-label"><b id="mat-done-count">0</b>&nbsp;of&nbsp;<span id="mat-total-count">0</span>
+          materials reviewed</div>
+        <div class="prog-wrap">
+          <div class="prog-fill pb" id="mat-overall-bar" style="width:0%"></div>
         </div>
+      </div>
 
-        <div class="mat-overall panel" id="mat-overall" style="display:none">
-          <div class="mat-overall-label"><b id="mat-done-count">0</b>&nbsp;of&nbsp;<span id="mat-total-count">0</span> materials reviewed</div>
-          <div class="prog-wrap"><div class="prog-fill pb" id="mat-overall-bar" style="width:0%"></div></div>
-        </div>
+      <div id="mat-units"></div>
 
-        <div id="mat-units"></div>
+      <div id="mat-empty" class="panel"
+        style="display:none;padding:24px 20px;text-align:center;color:var(--text-secondary);font-size:13px">
+        No active qualification found for your account yet. Check with your facilitator if this looks wrong.
+      </div>
+    </main>
+  </div>
 
-        <div id="mat-empty" class="panel" style="display:none;padding:24px 20px;text-align:center;color:var(--text-secondary);font-size:13px">
-          No active qualification found for your account yet. Check with your facilitator if this looks wrong.
-        </div>
-      </main>
-    </div>
+  <footer>Nkanyezi Learnership Management System &copy; 2025</footer>
 
-    <footer>Nkanyezi Learnership Management System &copy; 2025</footer>
+  <script src="materials.js"></script>
+  <script src="quiz-builder.js"></script>
+  <script src="project-builder.js"></script>
 
-    <script src="materials.js"></script>
-    <script src="quiz-builder.js"></script>
-    <script src="project-builder.js"></script>
 </body>
+
 </html>

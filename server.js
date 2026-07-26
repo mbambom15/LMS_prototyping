@@ -43,6 +43,7 @@ app.use(require('./routes/learner'));
 app.use(require('./routes/facilitator'));
 app.use(require('./routes/quizzes'));
 app.use(require('./routes/projects'));
+app.use(require('./routes/learner-assessments'));
 // Protect /admin
 app.use('/admin', isAuthenticated, isRole('admin'), express.static('protected/admin'));
 

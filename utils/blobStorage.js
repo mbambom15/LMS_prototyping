@@ -20,8 +20,21 @@ async function uploadMaterial(unitId, file) {
   return blobName; // stored in DB — not a public URL, since container is private
 }
 
+// Project submissions are evidence for SETA audit, so the blob path is
+// namespaced by project AND learner (not just project) — this keeps every
+// learner's submission independently addressable and means overwriting
+// one learner's resubmission can never touch another learner's evidence.
+async function uploadProjectSubmission(projectId, learnerId, file) {
+  const blobName = `project-submissions/${projectId}/${learnerId}/${Date.now()}-${file.originalname}`;
+  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+  await blockBlobClient.uploadData(file.buffer, {
+    blobHTTPHeaders: { blobContentType: file.mimetype }
+  });
+  return blobName;
+}
+
 // getSasUrl(blobName) — unchanged behaviour, existing callers keep working.
-// getSasUrl(blobName, { download: true, fileName }) — new: sets
+// getSasUrl(blobName, { download: true, fileName }) — sets
 // Content-Disposition: attachment on the SAS token so the browser saves
 // the file instead of opening it inline.
 function getSasUrl(blobName, options = {}) {
@@ -49,4 +62,4 @@ async function deleteBlob(blobName) {
   await blockBlobClient.deleteIfExists();
 }
 
-module.exports = { uploadMaterial, getSasUrl, deleteBlob };
+module.exports = { uploadMaterial, uploadProjectSubmission, getSasUrl, deleteBlob };

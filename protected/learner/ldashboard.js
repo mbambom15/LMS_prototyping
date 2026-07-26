@@ -60,6 +60,13 @@ async function loadQualification() {
     }
 }
 
+/* Formats a percentage with 2 decimal places, comma as the decimal
+   separator (6,00 not 6.00) to match the rest of the portal's number
+   formatting. */
+function fmtPct(n) {
+    return Number(n).toFixed(2).replace('.', ',');
+}
+
 /* ── Load progress vs expected (deal start_date + qualification duration) ── */
 async function loadProgress() {
     const el = document.getElementById('welcome-progress');
@@ -74,12 +81,15 @@ async function loadProgress() {
             return;
         }
 
+        const actualStr = fmtPct(p.actual_pct);
+        const expectedStr = fmtPct(p.expected_pct);
+
         if (p.is_behind) {
             el.style.color = '#e24b4a';
-            el.textContent = `Progress: ${p.actual_pct}% — Behind (expected ${p.expected_pct}%)`;
+            el.textContent = `Progress: ${actualStr}% — Behind (expected ${expectedStr}%)`;
         } else {
             el.style.color = '#1d9e75';
-            el.textContent = `Progress: ${p.actual_pct}% — On track (expected ${p.expected_pct}%)`;
+            el.textContent = `Progress: ${actualStr}% — On track (expected ${expectedStr}%)`;
         }
     } catch (err) {
         console.error('loadProgress error:', err);

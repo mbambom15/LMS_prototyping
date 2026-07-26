@@ -33,9 +33,16 @@ async function markAbsences() {
         // EXTRACT(DOW FROM date) in Postgres: 0=Sunday..6=Saturday.
         // Our day_of_week_1/2 use 0=Monday..6=Sunday, so convert:
         // postgres_dow -> our_dow is ((postgres_dow + 6) % 7)
+        //
+        // NOTE: 'absent' is cast to ::attendance_status explicitly. SELECT
+        // DISTINCT forces Postgres to resolve each output column's type
+        // up front (for the dedup comparison) before it knows the INSERT
+        // target column — so the literal resolves to plain text instead
+        // of staying "unknown". text has no implicit/assignment cast to
+        // an enum, so without the explicit cast this throws 42804.
         const result = await client.query(
             `INSERT INTO attendance_records (learner_id, attendance_date, status, capture_method)
-             SELECT DISTINCT l.learner_id, $1::date, 'absent', 'system_auto'
+             SELECT DISTINCT l.learner_id, $1::date, 'absent'::attendance_status, 'system_auto'
              FROM learners l
              JOIN enrolments e ON e.learner_id = l.learner_id AND e.status = 'active'
              JOIN attendance_schedules s ON s.learner_id = l.learner_id

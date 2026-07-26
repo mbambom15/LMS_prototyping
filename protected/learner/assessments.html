@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Assessments — Nkanyezi Academy</title>
+  <link rel="stylesheet" href="/shared/ldashboard.css">
+  <link rel="stylesheet" href="assessments.css">
+</head>
+
+<body>
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header>
+    <span class="logo">Nkanyezi Academy <small>Learner Portal</small></span>
+    <button class="hbtn">Help</button>
+    <button class="hbtn" onclick="handleLogout()">Logout</button>
+    <div class="av" id="header-initials">--</div>
+  </header>
+
+  <div class="layout">
+
+    <!-- ═══════════ SIDEBAR ═══════════
+         Same items, same navigateTo() pattern as ldashboard.html and
+         materials.html — Assessments is no longer a dead setActive-only
+         item, it's a real destination like the rest. -->
+    <aside class="sidebar">
+      <div class="slabel">My learning</div>
+      <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Dashboard</div>
+      <div class="sitem" onclick="navigateTo(this, '/shared/materials.html')">Materials</div>
+      <div class="sitem active" onclick="setActive(this)">Assessments</div>
+      <div class="slabel">My record</div>
+      <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
+      <div class="sitem" onclick="setActive(this)">Results</div>
+      <div class="slabel">Support</div>
+      <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Messages</div>
+    </aside>
+
+    <!-- ═══════════ MAIN ═══════════ -->
+    <main>
+      <div class="mat-page-head">
+        <h1>My Assessments</h1>
+        <p class="mat-page-sub">Quizzes and projects for your qualification.</p>
+      </div>
+
+      <div id="assessments-units"></div>
+    </main>
+  </div>
+
+  <footer>Nkanyezi Learnership Management System &copy; 2025</footer>
+
+  <script src="assessments-page.js"></script>
+  <script src="assessments.js"></script>
+</body>
+
+</html>

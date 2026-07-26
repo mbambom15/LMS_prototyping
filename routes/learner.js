@@ -4,6 +4,7 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { isAuthenticated, isRole } = require('../middleware/auth');
 const { calculateExpectedProgress } = require('../utils/progressCalculator');
+const { getLearnerGrade } = require('../utils/gradeCalculator');
 
 router.get('/api/learner/qualification', isAuthenticated, isRole('learner'), async (req, res) => {
   try {
@@ -24,15 +25,21 @@ router.get('/api/learner/qualification', isAuthenticated, isRole('learner'), asy
 });
 
 // ── GET /api/learner/progress ─────────────────────────────────────
-// Actual progress (enrolments.progress_pct) vs expected progress,
-// calculated daily from the learner's deal start_date and the
-// qualification's duration_months — same formula as the facilitator
-// portal's expected-progress calculator.
+// Actual progress vs expected progress (deal start_date + qualification
+// duration, unchanged). actual_pct is computed LIVE from learner_grades
+// via getLearnerGrade — not read from enrolments.progress_pct — so this
+// is always correct the instant it's requested, with no dependency on
+// something else having triggered a sync first (a quiz submit, a future
+// facilitator grading action, an admin publishing a new quiz that
+// changes the denominator). enrolments.progress_pct still gets kept in
+// sync by syncEnrolmentProgress() for other consumers (admin/facilitator
+// views, risk flags) that read it directly, but this endpoint no longer
+// depends on that being fresh.
 router.get('/api/learner/progress', isAuthenticated, isRole('learner'), async (req, res) => {
   try {
     const learnerId = req.session.user.id;
     const { rows } = await pool.query(
-      `SELECT e.progress_pct, d.start_date AS deal_start_date, q.duration_months
+      `SELECT e.qualification_id, d.start_date AS deal_start_date, q.duration_months
        FROM enrolments e
        JOIN learners l ON l.learner_id = e.learner_id
        LEFT JOIN deals d ON d.deal_number = l.deal_number
@@ -47,7 +54,8 @@ router.get('/api/learner/progress', isAuthenticated, isRole('learner'), async (r
     }
 
     const row = rows[0];
-    const actualPct = row.progress_pct != null ? Math.round(row.progress_pct) : 0;
+    const grade = await getLearnerGrade(pool, learnerId, row.qualification_id);
+    const actualPct = grade.overall_pct; // live, full precision — no Math.round here, decimals kept for display
     const expectedPct = calculateExpectedProgress(row.deal_start_date, row.duration_months);
 
     res.json({

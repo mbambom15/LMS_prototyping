@@ -189,7 +189,9 @@ async function fetchDeals() {
     }
 }
 
-// ── Grading ───────────────────────────────────────────────────
+// ── Grading — grades projects/project_submissions, the table pair the
+// quiz/40-60 grade weighting is built on. Same inline-card UI pattern
+// as before; only the data source and field names changed. ──────────
 let gradingSearchTimer = null;
 let gradingFiltersReady = false;
 
@@ -234,13 +236,13 @@ async function fetchSubmissions() {
         if (status && status !== 'all') params.set('status', status);
         if (dealNumber) params.set('deal_number', dealNumber);
 
-        const resp = await apiGet(`/api/facilitator/submissions?${params.toString()}`);
+        const resp = await apiGet(`/api/facilitator/project-submissions?${params.toString()}`);
         const submissions = resp.submissions || [];
 
         document.getElementById('grading-count-label').textContent =
             `${submissions.length} submission${submissions.length === 1 ? '' : 's'}`;
         const badge = document.getElementById('grading-count-badge');
-        badge.textContent = submissions.filter(s => s.status === 'pending').length || '';
+        badge.textContent = submissions.filter(s => s.status === 'submitted').length || '';
 
         if (!submissions.length) {
             container.innerHTML = `<div class="empty-state">No submissions match your filters.</div>`;
@@ -262,18 +264,18 @@ function renderSubmissionCard(s) {
                 <span class="avatar-init">${initials(s.name, s.surname)}</span>
                 <div style="flex:1;">
                     <strong>${s.name} ${s.surname}</strong>
-                    <div class="card-sub">${s.assessment_title} · Unit ${s.unit_number}: ${s.unit_title} · Deal ${s.deal_number}</div>
+                    <div class="card-sub">${s.project_title} (attempt ${s.attempt_number}) · Unit ${s.unit_number}: ${s.unit_title} · Deal ${s.deal_number}</div>
                 </div>
                 <span class="badge ${isGraded ? 'badge-green' : 'badge-amber'}">${isGraded ? 'graded' : 'pending'}</span>
             </div>
             <div class="card-sub" style="margin-bottom:10px;">
-                Submitted ${fmtDate(s.submitted_at)} · Max score ${s.max_score} · Pass mark ${s.pass_mark}
+                Submitted ${fmtDate(s.submitted_at)} · Total marks ${s.total_marks} · Pass mark ${s.pass_mark_pct}%
                 ${s.file_url ? ` · <a href="${s.file_url}" target="_blank" rel="noopener">View submission file</a>` : ''}
             </div>
             <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
                 <div style="width:100px;">
                     <label class="form-label">Score</label>
-                    <input type="number" id="score-${s.id}" min="0" max="${s.max_score}" value="${s.score ?? ''}">
+                    <input type="number" id="score-${s.id}" min="0" max="${s.total_marks}" step="0.5" value="${s.score ?? ''}">
                 </div>
                 <div style="flex:1; min-width:220px;">
                     <label class="form-label">Feedback</label>
@@ -298,7 +300,7 @@ async function submitGrade(submissionId) {
     }
 
     try {
-        await apiPost(`/api/facilitator/submissions/${submissionId}/grade`, { score: Number(score), feedback });
+        await apiPost(`/api/facilitator/project-submissions/${submissionId}/grade`, { score: Number(score), feedback });
         const toast = document.getElementById(`grade-toast-${submissionId}`);
         toast.style.display = 'inline-block';
         setTimeout(() => { toast.style.display = 'none'; }, 2000);

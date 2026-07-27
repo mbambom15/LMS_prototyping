@@ -24,6 +24,10 @@ function validProjectPayload(b) {
   if (b.duration_days === undefined || Number.isNaN(parseInt(b.duration_days, 10)) || parseInt(b.duration_days, 10) <= 0) {
     return 'Duration (days) must be a positive whole number';
   }
+  if (b.pass_mark_pct !== undefined) {
+    const pm = Number(b.pass_mark_pct);
+    if (Number.isNaN(pm) || pm < 0 || pm > 100) return 'Pass mark must be a percentage between 0 and 100';
+  }
   return null;
 }
 
@@ -34,7 +38,7 @@ router.get('/api/units/:unitId/projects', isAuthenticated, isRole('admin'), asyn
     if (!uuidRe.test(unitId)) return res.status(400).json({ success: false, message: 'Invalid unit ID' });
 
     const result = await pool.query(
-      `SELECT p.id, p.title, p.description, p.status, p.total_marks, p.duration_days,
+      `SELECT p.id, p.title, p.description, p.status, p.total_marks, p.pass_mark_pct, p.duration_days,
               p.brief_file_name, p.brief_file_size, p.created_at,
               COUNT(ps.id)::int AS submission_count
          FROM projects p
@@ -60,11 +64,12 @@ router.post('/api/units/:unitId/projects', isAuthenticated, isRole('admin'), asy
     const err = validProjectPayload(req.body);
     if (err) return res.status(400).json({ success: false, message: err });
 
-    const { title, description, total_marks, duration_days } = req.body;
+    const { title, description, total_marks, duration_days, pass_mark_pct } = req.body;
     const result = await pool.query(
-      `INSERT INTO projects (unit_id, title, description, total_marks, duration_days, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [unitId, title.trim(), description?.trim() || null, total_marks, parseInt(duration_days, 10), req.session.user.id]
+      `INSERT INTO projects (unit_id, title, description, total_marks, duration_days, pass_mark_pct, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [unitId, title.trim(), description?.trim() || null, total_marks, parseInt(duration_days, 10),
+       pass_mark_pct !== undefined ? pass_mark_pct : 50, req.session.user.id]
     );
     res.json({ success: true, projectId: result.rows[0].id, message: 'Project created' });
   } catch (err) {
@@ -105,11 +110,12 @@ router.put('/api/projects/:id', isAuthenticated, isRole('admin'), async (req, re
     const err = validProjectPayload(req.body);
     if (err) return res.status(400).json({ success: false, message: err });
 
-    const { title, description, total_marks, duration_days } = req.body;
+    const { title, description, total_marks, duration_days, pass_mark_pct } = req.body;
     await pool.query(
-      `UPDATE projects SET title=$1, description=$2, total_marks=$3, duration_days=$4, updated_at=NOW()
-       WHERE id=$5`,
-      [title.trim(), description?.trim() || null, total_marks, parseInt(duration_days, 10), id]
+      `UPDATE projects SET title=$1, description=$2, total_marks=$3, duration_days=$4, pass_mark_pct=$5, updated_at=NOW()
+       WHERE id=$6`,
+      [title.trim(), description?.trim() || null, total_marks, parseInt(duration_days, 10),
+       pass_mark_pct !== undefined ? pass_mark_pct : 50, id]
     );
     res.json({ success: true, message: 'Project updated' });
   } catch (err) {

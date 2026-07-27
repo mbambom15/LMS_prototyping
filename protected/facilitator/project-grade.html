@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grade Project · Nkanyezi Academy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-wrapper">
+    <div class="top-bar">
+        <div class="logo-area">
+            <span>Nkanyezi Academy</span>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn-outline-sm" onclick="logoutAction()">Logout</button>
+            <div class="avatar-placeholder" id="facilitator-initials">--</div>
+        </div>
+    </div>
+
+    <div style="padding: 20px 28px 0;">
+        <a href="dashboard.html" class="btn btn-sm">&larr; Back to project submissions</a>
+    </div>
+
+    <main class="main-area" style="max-width: 820px; margin: 0 auto;">
+
+        <div class="card" id="pg-loading-card">
+            <div class="empty-state" style="padding: 40px;">Loading submission…</div>
+        </div>
+
+        <div class="card" id="pg-content-card" style="display:none;">
+            <div class="card-header">
+                <span class="card-title" id="pg-learner-name">—</span>
+                <span class="badge" id="pg-status-badge"></span>
+            </div>
+            <div style="padding: 18px 20px 4px;">
+                <div class="grid-2cols" style="grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+                    <div><div class="form-label">Learner email</div><div id="pg-learner-email">—</div></div>
+                    <div><div class="form-label">Deal</div><div id="pg-deal">—</div></div>
+                    <div><div class="form-label">Unit</div><div id="pg-unit">—</div></div>
+                    <div><div class="form-label">Submitted</div><div id="pg-submitted">—</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="pg-project-card" style="display:none; margin-top: 16px;">
+            <div class="card-header"><span class="card-title" id="pg-project-title">Project</span></div>
+            <div style="padding: 18px 20px;">
+                <p id="pg-project-desc" class="card-sub" style="margin-bottom: 14px;"></p>
+                <div class="grid-2cols" style="grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+                    <div><div class="form-label">Total marks</div><div id="pg-total-marks" style="font-size:20px; font-weight:600;">—</div></div>
+                    <div><div class="form-label">Pass mark</div><div id="pg-pass-mark" style="font-size:20px; font-weight:600;">—</div></div>
+                </div>
+                <div id="pg-brief-row" style="display:none; margin-bottom: 10px;">
+                    <a id="pg-brief-link" href="#" target="_blank" rel="noopener" class="btn btn-sm">View assessment brief</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="pg-submission-card" style="display:none; margin-top: 16px;">
+            <div class="card-header"><span class="card-title">Submitted work</span></div>
+            <div style="padding: 18px 20px; display:flex; align-items:center; gap: 10px; flex-wrap: wrap;">
+                <span id="pg-submission-filename">—</span>
+                <a id="pg-view-link" href="#" target="_blank" rel="noopener" class="btn btn-sm">View</a>
+                <a id="pg-download-link" href="#" target="_blank" rel="noopener" class="btn btn-sm">Download</a>
+            </div>
+        </div>
+
+        <div class="card" id="pg-grade-card" style="display:none; margin-top: 16px;">
+            <div class="card-header"><span class="card-title">Grade this submission</span></div>
+            <div style="padding: 18px 20px;">
+                <div style="display:flex; gap: 16px; align-items:flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+                    <div style="width: 140px;">
+                        <label class="form-label">Score (out of <span id="pg-score-max">—</span>)</label>
+                        <input type="number" id="pg-score-input" min="0" step="0.5">
+                    </div>
+                </div>
+                <label class="form-label">Comment for the learner (optional)</label>
+                <textarea id="pg-comment-input" rows="4" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #ddd; border-radius:6px;" placeholder="Feedback on their submission…"></textarea>
+                <div style="margin-top: 16px; display:flex; align-items:center; gap: 12px;">
+                    <button class="btn btn-primary" id="pg-finish-btn" onclick="finishGrading()">Finish grading</button>
+                    <span id="pg-save-status" class="card-sub"></span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+    <footer>Nkanyezi Academy · Facilitator portal</footer>
+</div>
+
+<script src="project-grade.js"></script>
+</body>
+</html>

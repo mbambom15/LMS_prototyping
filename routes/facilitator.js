@@ -5,6 +5,10 @@ const { isAuthenticated, isRole } = require('../middleware/auth');
 const PDFDocument = require('pdfkit');
 const { generateFeedbackDraft } = require('../utils/feedbackGenerator');
 const { sendLearnerFeedbackEmail } = require('../utils/emailService');
+const { getSasUrl } = require('../utils/blobStorage');
+const { syncEnrolmentProgress } = require('../utils/gradeCalculator');
+
+const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Every route below is scoped to the logged-in facilitator
 router.use('/api/facilitator', isAuthenticated, isRole('facilitator'));
@@ -267,7 +271,6 @@ router.get('/api/facilitator/learners/:learnerId', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
         const { learnerId } = req.params;
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRe.test(learnerId)) {
             return res.status(400).json({ success: false, message: 'Invalid learner ID' });
         }
@@ -359,7 +362,6 @@ router.get('/api/facilitator/learners/:learnerId/attendance', async (req, res) =
     try {
         const facilitatorId = req.session.user.id;
         const { learnerId } = req.params;
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRe.test(learnerId)) {
             return res.status(400).json({ success: false, message: 'Invalid learner ID' });
         }
@@ -589,6 +591,9 @@ router.get('/api/facilitator/attendance/report.pdf', async (req, res) => {
 });
 
 // ── GET /api/facilitator/submissions?status=&deal_number=&search= ─
+// NOTE: this grades the OLDER assessments/assessment_submissions system.
+// The NEW projects/project_submissions system (below) is a separate,
+// unrelated table pair — see /api/facilitator/project-submissions.
 router.get('/api/facilitator/submissions', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -659,7 +664,6 @@ router.post('/api/facilitator/submissions/:id/grade', async (req, res) => {
         const { id } = req.params;
         const { score, feedback } = req.body;
 
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRe.test(id)) {
             return res.status(400).json({ success: false, message: 'Invalid submission ID' });
         }
@@ -704,12 +708,273 @@ router.post('/api/facilitator/submissions/:id/grade', async (req, res) => {
     }
 });
 
+// ═══════════════════════ PROJECT GRADING (new system) ═══════════════════════
+// Grades projects/project_submissions — the table pair the quiz/grade-
+// weighting work (40% quiz / 60% project) is actually built on. This is
+// deliberately kept separate from /api/facilitator/submissions above
+// rather than merged, since that endpoint grades a different, older
+// table pair (assessments/assessment_submissions) with its own schema.
+
+// ── GET /api/facilitator/project-submissions?status=&deal_number=&search= ──
+// Only shows submissions the learner has actually submitted (drafts —
+// files staged but not yet locked in — are never visible to a facilitator).
+router.get('/api/facilitator/project-submissions', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { status, deal_number, search } = req.query;
+
+        const conditions = ["d.facilitator_id = $1", "d.is_deleted = FALSE", "ps.status IN ('submitted','graded')"];
+        const values = [facilitatorId];
+        let idx = 2;
+
+        if (status && status !== 'all') {
+            conditions.push(`ps.status = $${idx++}`);
+            values.push(status);
+        }
+        if (deal_number) {
+            conditions.push(`d.deal_number = $${idx++}`);
+            values.push(deal_number);
+        }
+        if (search && search.trim()) {
+            conditions.push(`(u.name ILIKE $${idx} OR u.surname ILIKE $${idx} OR p.title ILIKE $${idx})`);
+            values.push(`%${search.trim()}%`);
+            idx++;
+        }
+
+        const result = await pool.query(
+            `SELECT
+                ps.id, ps.attempt_number, ps.submitted_at, ps.status, ps.score, ps.feedback,
+                ps.file_url AS submission_blob, ps.file_name AS submission_file_name,
+                p.id AS project_id, p.title AS project_title, p.total_marks, p.pass_mark_pct,
+                un.unit_number, un.title AS unit_title,
+                u.user_id AS learner_id, u.name, u.surname,
+                d.deal_number, d.sponsor
+             FROM project_submissions ps
+             JOIN projects p ON p.id = ps.project_id
+             JOIN units un ON un.id = p.unit_id
+             JOIN learners l ON l.learner_id = ps.learner_id
+             JOIN users u ON u.user_id = l.learner_id
+             JOIN deals d ON d.deal_number = l.deal_number
+             WHERE ${conditions.join(' AND ')}
+             ORDER BY ps.submitted_at ASC`,
+            values
+        );
+
+        const submissions = result.rows.map(r => ({
+            ...r,
+            file_url: r.submission_blob ? getSasUrl(r.submission_blob) : null,
+        }));
+
+        res.json({ success: true, submissions });
+    } catch (err) {
+        console.error('GET /api/facilitator/project-submissions error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch project submissions' });
+    }
+});
+
+// ── GET /api/facilitator/project-submissions/:id ────────────────────
+// Full detail for the grading page: learner info, project brief +
+// submission file (both as signed download links), marks/pass mark,
+// and the current grade if this has been graded already (so the page
+// can pre-fill and support re-grading).
+router.get('/api/facilitator/project-submissions/:id', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { id } = req.params;
+        if (!uuidRe.test(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid submission ID' });
+        }
+
+        const result = await pool.query(
+            `SELECT
+                ps.id, ps.submitted_at, ps.status, ps.score, ps.feedback,
+                ps.file_url AS submission_file_url, ps.file_name AS submission_file_name, ps.file_size_bytes,
+                p.id AS project_id, p.title AS project_title, p.description AS project_description,
+                p.total_marks, p.pass_mark_pct, p.duration_days,
+                p.brief_file_url, p.brief_file_name,
+                un.unit_number, un.title AS unit_title, un.qualification_id,
+                u.user_id AS learner_id, u.name, u.surname, u.email,
+                d.deal_number, d.sponsor
+             FROM project_submissions ps
+             JOIN projects p ON p.id = ps.project_id
+             JOIN units un ON un.id = p.unit_id
+             JOIN learners l ON l.learner_id = ps.learner_id
+             JOIN users u ON u.user_id = l.learner_id
+             JOIN deals d ON d.deal_number = l.deal_number
+             WHERE ps.id = $1 AND d.facilitator_id = $2 AND d.is_deleted = FALSE
+               AND ps.status IN ('submitted','graded')`,
+            [id, facilitatorId]
+        );
+        if (!result.rows.length) {
+            return res.status(404).json({ success: false, message: 'Submission not found or not one of your learners' });
+        }
+        const s = result.rows[0];
+
+        res.json({
+            success: true,
+            submission: {
+                ...s,
+                submission_file_download_url: s.submission_file_url
+                    ? getSasUrl(s.submission_file_url, { download: true, fileName: s.submission_file_name })
+                    : null,
+                submission_file_view_url: s.submission_file_url
+                    ? getSasUrl(s.submission_file_url)
+                    : null,
+                brief_url: s.brief_file_url
+                    ? getSasUrl(s.brief_file_url, { download: true, fileName: s.brief_file_name })
+                    : null,
+            },
+        });
+    } catch (err) {
+        console.error('GET /api/facilitator/project-submissions/:id error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch submission detail' });
+    }
+});
+
+// ── POST /api/facilitator/project-submissions/:id/grade ─────────────
+// Sets score + feedback, marks the submission 'graded', and immediately
+// syncs the learner's enrolments.progress_pct — this is the piece the
+// dashboard progress bar needed all along: a graded project now updates
+// it exactly like a graded quiz already does.
+router.post('/api/facilitator/project-submissions/:id/grade', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { id } = req.params;
+        const { score, feedback } = req.body;
+
+        if (!uuidRe.test(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid submission ID' });
+        }
+        if (score === undefined || score === null || Number.isNaN(Number(score))) {
+            return res.status(400).json({ success: false, message: 'A numeric score is required' });
+        }
+
+        const owns = await pool.query(
+            `SELECT ps.id, ps.learner_id, p.total_marks, un.qualification_id
+             FROM project_submissions ps
+             JOIN projects p ON p.id = ps.project_id
+             JOIN units un ON un.id = p.unit_id
+             JOIN learners l ON l.learner_id = ps.learner_id
+             JOIN deals d ON d.deal_number = l.deal_number
+             WHERE ps.id = $1 AND d.facilitator_id = $2 AND d.is_deleted = FALSE
+               AND ps.status IN ('submitted','graded')`,
+            [id, facilitatorId]
+        );
+        if (!owns.rows.length) {
+            return res.status(404).json({ success: false, message: 'Submission not found or not one of your learners' });
+        }
+        const { learner_id: learnerId, total_marks: totalMarks, qualification_id: qualificationId } = owns.rows[0];
+        if (Number(score) > Number(totalMarks) || Number(score) < 0) {
+            return res.status(400).json({ success: false, message: `Score must be between 0 and ${totalMarks}` });
+        }
+
+        await pool.query(
+            `UPDATE project_submissions
+             SET score = $1, feedback = $2, graded_by = $3, graded_at = NOW(), status = 'graded'
+             WHERE id = $4`,
+            [score, feedback || null, facilitatorId, id]
+        );
+
+        try {
+            await syncEnrolmentProgress(pool, learnerId, qualificationId);
+        } catch (syncErr) {
+            console.error('syncEnrolmentProgress error (grade was still saved):', syncErr);
+        }
+
+        res.json({ success: true, message: 'Project graded' });
+    } catch (err) {
+        console.error('POST /api/facilitator/project-submissions/:id/grade error:', err);
+        res.status(500).json({ success: false, message: 'Failed to grade project' });
+    }
+});
+
+// ═══════════════════════ MATERIALS ACCESS (view-only) ═══════════════════════
+// Facilitators can view/preview materials for qualifications tied to
+// their own deals — no upload/manage capability, just the same
+// view-only rows learners see. Mirrors the shape of the learner/admin
+// materials endpoints in routes/materials.js so materials.js's existing
+// unit-accordion rendering (renderUnit(unit, false)) works unmodified.
+
+// ── GET /api/facilitator/qualifications ──────────────────────────
+// Distinct qualifications across this facilitator's deals, for the
+// materials page's qualification picker.
+router.get('/api/facilitator/qualifications', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const result = await pool.query(
+            `SELECT DISTINCT q.qualification_id AS id, q.title, q.nqf_level
+             FROM deals d
+             JOIN qualifications q ON q.qualification_id = d.qualification_id
+             WHERE d.facilitator_id = $1 AND d.is_deleted = FALSE
+             ORDER BY q.title`,
+            [facilitatorId]
+        );
+        res.json({ success: true, qualifications: result.rows });
+    } catch (err) {
+        console.error('GET /api/facilitator/qualifications error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch qualifications' });
+    }
+});
+
+// ── GET /api/facilitator/qualifications/:qualId/units ────────────
+// Bare units list (no materials nested) — same two-step pattern the
+// admin materials browser already uses: fetch units here, then fetch
+// each unit's materials via the existing GET /api/units/:unitId/materials.
+router.get('/api/facilitator/qualifications/:qualId/units', async (req, res) => {
+    try {
+        const facilitatorId = req.session.user.id;
+        const { qualId } = req.params;
+        if (!uuidRe.test(qualId)) {
+            return res.status(400).json({ success: false, message: 'Invalid qualification ID' });
+        }
+
+        const owns = await pool.query(
+            `SELECT 1 FROM deals WHERE facilitator_id = $1 AND qualification_id = $2 AND is_deleted = FALSE LIMIT 1`,
+            [facilitatorId, qualId]
+        );
+        if (!owns.rows.length) {
+            return res.status(404).json({ success: false, message: 'Qualification not found among your deals' });
+        }
+
+        const result = await pool.query(
+            `SELECT id, unit_number, title FROM units WHERE qualification_id = $1 ORDER BY unit_number`,
+            [qualId]
+        );
+        res.json({ success: true, units: result.rows });
+    } catch (err) {
+        console.error('GET /api/facilitator/qualifications/:qualId/units error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch units' });
+    }
+});
+
+// ── GET /api/facilitator/materials/:materialId/view?download=1 ───
+// Signed URL only — no material_views insert (that table tracks
+// learner completion progress, which doesn't apply to a facilitator
+// previewing a file). Mirrors the admin equivalent in routes/materials.js.
+router.get('/api/facilitator/materials/:materialId/view', async (req, res) => {
+    try {
+        const { materialId } = req.params;
+        const wantsDownload = req.query.download === '1';
+
+        const { rows } = await pool.query(
+            `SELECT id, file_url, file_name, title FROM materials WHERE id = $1`,
+            [materialId]
+        );
+        if (!rows.length) return res.status(404).json({ success: false, message: 'Material not found' });
+
+        const url = getSasUrl(rows[0].file_url, { download: wantsDownload, fileName: rows[0].file_name });
+        res.json({ success: true, url, file_name: rows[0].file_name });
+    } catch (err) {
+        console.error('GET /api/facilitator/materials/:materialId/view error:', err);
+        res.status(500).json({ success: false, message: 'Failed to open material' });
+    }
+});
+
 // ── GET /api/facilitator/learners/:learnerId/feedback/draft ──────
 router.get('/api/facilitator/learners/:learnerId/feedback/draft', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
         const { learnerId } = req.params;
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRe.test(learnerId)) {
             return res.status(400).json({ success: false, message: 'Invalid learner ID' });
         }
@@ -811,7 +1076,6 @@ router.post('/api/facilitator/learners/:learnerId/feedback/send', async (req, re
         const { learnerId } = req.params;
         const { subject, message } = req.body;
 
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRe.test(learnerId)) {
             return res.status(400).json({ success: false, message: 'Invalid learner ID' });
         }
@@ -959,7 +1223,6 @@ router.post('/api/facilitator/messages', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
         const { learnerId, subject, message } = req.body;
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRe.test(learnerId || '')) {
             return res.status(400).json({ success: false, message: 'Invalid learner ID' });
         }
@@ -1033,7 +1296,6 @@ router.get('/api/facilitator/learners/:learnerId/submissions', async (req, res) 
     try {
         const facilitatorId = req.session.user.id;
         const { learnerId } = req.params;
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRe.test(learnerId)) {
             return res.status(400).json({ success: false, message: 'Invalid learner ID' });
         }
@@ -1072,7 +1334,6 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
     try {
         const facilitatorId = req.session.user.id;
         const { learnerId } = req.params;
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRe.test(learnerId)) {
             return res.status(400).json({ success: false, message: 'Invalid learner ID' });
         }

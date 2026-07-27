@@ -74,7 +74,7 @@ const ProjectBuilder = (() => {
           ${statusBadge(p.status)}
         </div>
         <div class="pj-row-meta">
-          ${p.total_marks} marks · ${p.duration_days} day${Number(p.duration_days) === 1 ? '' : 's'} ·
+          ${p.total_marks} marks · pass mark ${p.pass_mark_pct}% · ${p.duration_days} day${Number(p.duration_days) === 1 ? '' : 's'} ·
           ${p.submission_count} submission${p.submission_count === 1 ? '' : 's'}
           ${!hasBrief ? '<span class="pj-incomplete"> · no brief uploaded yet</span>' : ''}
         </div>
@@ -100,6 +100,7 @@ const ProjectBuilder = (() => {
       </div>
       <div class="pj-form-row pj-form-row-split">
         <input type="number" class="pj-input" id="pj-new-marks-${unitId}" placeholder="Total marks" min="1" step="0.5">
+        <input type="number" class="pj-input" id="pj-new-pass-${unitId}" placeholder="Pass mark %" min="0" max="100" value="50">
         <input type="number" class="pj-input" id="pj-new-duration-${unitId}" placeholder="Duration (days)" min="1">
       </div>
       <button class="btn btn-xs btn-blue" data-action="save-new-project">Create project</button>
@@ -111,10 +112,12 @@ const ProjectBuilder = (() => {
     const title = document.getElementById(`pj-new-title-${unitId}`).value.trim();
     const total_marks = document.getElementById(`pj-new-marks-${unitId}`).value;
     const duration_days = document.getElementById(`pj-new-duration-${unitId}`).value;
+    const pass_mark_pct = document.getElementById(`pj-new-pass-${unitId}`).value;
 
     if (!title) { alert('Project title is required.'); return; }
     if (!total_marks || Number(total_marks) <= 0) { alert('Enter a valid mark allocation.'); return; }
     if (!duration_days || parseInt(duration_days, 10) <= 0) { alert('Enter a valid duration in days.'); return; }
+    if (pass_mark_pct !== '' && (Number(pass_mark_pct) < 0 || Number(pass_mark_pct) > 100)) { alert('Pass mark must be between 0 and 100.'); return; }
 
     const description = document.getElementById(`pj-new-desc-${unitId}`).value.trim();
 
@@ -122,7 +125,7 @@ const ProjectBuilder = (() => {
       const res = await fetch(`/api/units/${unitId}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, total_marks, duration_days }),
+        body: JSON.stringify({ title, description, total_marks, duration_days, pass_mark_pct: pass_mark_pct || 50 }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
@@ -168,7 +171,7 @@ const ProjectBuilder = (() => {
         <div class="pj-editor-head">
           <div>
             <div class="pj-editor-title">${escHtml(project.title)}</div>
-            <div class="pj-editor-sub">${statusBadge(project.status)} · ${project.total_marks} marks · ${project.duration_days} day${Number(project.duration_days) === 1 ? '' : 's'} to submit</div>
+            <div class="pj-editor-sub">${statusBadge(project.status)} · ${project.total_marks} marks · pass mark ${project.pass_mark_pct}% · ${project.duration_days} day${Number(project.duration_days) === 1 ? '' : 's'} to submit</div>
           </div>
           <div class="pj-editor-actions">
             ${isPublished
@@ -203,6 +206,7 @@ const ProjectBuilder = (() => {
           </div>
           <div class="pj-form-row pj-form-row-split">
             <input type="number" class="pj-input" id="pj-edit-marks-${unitId}" value="${project.total_marks}" min="1" step="0.5" placeholder="Total marks">
+            <input type="number" class="pj-input" id="pj-edit-pass-${unitId}" value="${project.pass_mark_pct}" min="0" max="100" placeholder="Pass mark %">
             <input type="number" class="pj-input" id="pj-edit-duration-${unitId}" value="${project.duration_days}" min="1" placeholder="Duration (days)">
             <button class="btn btn-xs btn-blue" data-action="save-fields">Save changes</button>
           </div>
@@ -235,6 +239,7 @@ const ProjectBuilder = (() => {
       description: document.getElementById(`pj-edit-desc-${unitId}`).value.trim(),
       total_marks: document.getElementById(`pj-edit-marks-${unitId}`).value,
       duration_days: document.getElementById(`pj-edit-duration-${unitId}`).value,
+      pass_mark_pct: document.getElementById(`pj-edit-pass-${unitId}`).value || 50,
     };
     try {
       const res = await fetch(`/api/projects/${projectId}`, {

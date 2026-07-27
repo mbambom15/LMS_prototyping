@@ -142,6 +142,15 @@ const LearnerAssessments = (() => {
 
   function renderProjectCard(p) {
     const sub = p.submission;
+    const badges = p.attempts.map(a => {
+      const cls = a.status !== 'graded' ? 'as-status-progress'
+        : (a.score >= (p.total_marks * p.pass_mark_pct / 100) ? 'as-status-pass' : 'as-status-fail');
+      const label = a.status !== 'graded'
+        ? `Attempt ${a.attempt_number}: ${a.status}`
+        : `Attempt ${a.attempt_number}: ${a.score}/${p.total_marks}`;
+      return `<span class="quiz-attempt-badge ${cls}">${label}</span>`;
+    }).join(' ');
+
     return `
       <div class="as-card" data-project-card="${p.id}">
         <div class="as-card-main">
@@ -149,9 +158,10 @@ const LearnerAssessments = (() => {
           <div class="as-card-title">${escHtml(p.title)}</div>
           ${p.description ? `<div class="as-card-desc">${escHtml(p.description)}</div>` : ''}
           <div class="as-card-meta">
-            ${p.total_marks} marks · ${p.duration_days} day${p.duration_days === 1 ? '' : 's'} to submit
+            ${p.total_marks} marks · pass mark ${p.pass_mark_pct}% · ${p.duration_days} day${p.duration_days === 1 ? '' : 's'} to submit · ${p.max_attempts} attempt${p.max_attempts === 1 ? '' : 's'} allowed
             ${p.has_brief ? ` · <a href="#" data-brief-link="${p.id}">Download brief</a>` : ''}
           </div>
+          ${badges ? `<div class="quiz-attempt-badges">${badges}</div>` : ''}
           ${sub && sub.deadline_at ? `<div class="as-card-deadline" data-deadline="${sub.deadline_at}">Loading deadline…</div>` : ''}
           <div class="pj-upload-area" id="pj-upload-${p.id}"></div>
         </div>
@@ -195,7 +205,7 @@ const LearnerAssessments = (() => {
       area.innerHTML = `
         <div class="pj-locked">
           <span class="pj-check">✓</span> Submitted — ${escHtml(sub.file_name)} (${fmtSize(sub.file_size_bytes)})
-          ${sub.score != null ? `<div class="as-card-status as-status-pass" style="margin-top:4px">Graded: ${sub.score}/${p.total_marks}</div>` : `<div class="as-card-status" style="margin-top:4px">Awaiting facilitator grading</div>`}
+          <div class="as-card-status" style="margin-top:4px">Awaiting facilitator grading</div>
         </div>`;
       return;
     }
@@ -212,9 +222,15 @@ const LearnerAssessments = (() => {
       return;
     }
 
+    if (!p.can_start_new) {
+      area.innerHTML = `<div class="as-card-status">No attempts remaining${p.best_score != null ? ` · Best: ${p.best_score}/${p.total_marks}` : ''}</div>`;
+      return;
+    }
+
+    const uploadLabel = p.attempts_used === 0 ? 'Upload PDF or ZIP' : `Upload for attempt ${p.attempts_used + 1} of ${p.max_attempts}`;
     area.innerHTML = `
       <label class="btn btn-xs pj-upload-btn">
-        Upload PDF or ZIP
+        ${uploadLabel}
         <input type="file" accept=".pdf,.zip" style="display:none" id="pj-file-${p.id}">
       </label>
       <span class="pj-upload-hint" id="pj-upload-hint-${p.id}"></span>`;
@@ -232,7 +248,16 @@ const LearnerAssessments = (() => {
       const res = await fetch(`/api/learner/projects/${p.id}/upload`, { method: 'POST', body: formData });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
-      p.submission = { ...(p.submission || {}), file_name: data.submission.file_name, file_size_bytes: data.submission.file_size_bytes, status: 'draft', started_at: data.submission.started_at, deadline_at: p.submission?.deadline_at || new Date(new Date(data.submission.started_at).getTime() + p.duration_days * 86400000) };
+      const s = data.submission;
+      p.submission = {
+        id: s.id,
+        attempt_number: s.attempt_number,
+        status: 'draft',
+        file_name: s.file_name,
+        file_size_bytes: s.file_size_bytes,
+        started_at: s.started_at,
+        deadline_at: new Date(new Date(s.started_at).getTime() + p.duration_days * 86400000),
+      };
       renderProjectUploadArea(container, p);
     } catch (err) {
       if (hint) hint.textContent = 'Upload failed: ' + err.message;

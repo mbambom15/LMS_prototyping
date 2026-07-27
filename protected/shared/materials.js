@@ -40,6 +40,10 @@ const SIDEBARS = {
       <div class="slabel">Admin</div>
       <div class="sitem" onclick="navigateTo(this, '/admin/admin.html')">Back to dashboard</div>
       <div class="sitem active" onclick="setActive(this)">Materials &amp; quizzes</div>`,
+    facilitator: `
+      <div class="slabel">Facilitator</div>
+      <div class="sitem" onclick="navigateTo(this, '/facilitator/dashboard.html')">Back to dashboard</div>
+      <div class="sitem active" onclick="setActive(this)">Materials</div>`,
 };
 
 function renderSidebar(role) {
@@ -61,7 +65,9 @@ async function loadHeaderUser() {
 
         const portalLabel = document.getElementById('portal-label');
         if (portalLabel) {
-            portalLabel.textContent = currentRole === 'admin' ? 'Admin Portal' : 'Learner Portal';
+            portalLabel.textContent = currentRole === 'admin' ? 'Admin Portal'
+                : currentRole === 'facilitator' ? 'Facilitator Portal'
+                : 'Learner Portal';
         }
         renderSidebar(currentRole);
     } catch (err) {
@@ -85,6 +91,8 @@ async function openMaterial(materialId, mode) {
     try {
         const base = currentRole === 'admin'
             ? `/api/admin/materials/${materialId}/view`
+            : currentRole === 'facilitator'
+            ? `/api/facilitator/materials/${materialId}/view`
             : `/api/learner/materials/${materialId}/view`;
         const url = mode === 'download' ? `${base}?download=1` : base;
 
@@ -102,8 +110,8 @@ async function openMaterial(materialId, mode) {
         a.remove();
 
         // Reflect the view immediately without a full reload (learner only —
-        // admins don't have a "viewed" progress state to update)
-        if (currentRole !== 'admin') {
+        // admins and facilitators don't have a "viewed" progress state to update)
+        if (currentRole !== 'admin' && currentRole !== 'facilitator') {
             const row = document.querySelector(`[data-material-id="${materialId}"]`);
             if (row && !row.classList.contains('viewed')) {
                 row.classList.add('viewed');
@@ -163,6 +171,7 @@ function renderUnit(unit, isAdmin) {
 
 async function loadMaterials() {
     if (currentRole === 'admin') return loadAdminMaterialsBrowser();
+    if (currentRole === 'facilitator') return loadFacilitatorMaterialsBrowser();
 
     try {
         const res = await fetch('/api/learner/materials');
@@ -261,6 +270,65 @@ async function loadAdminUnitsForQual(qualId) {
             const pjMount = document.getElementById(`pj-container-${u.id}`);
             if (pjMount) ProjectBuilder.renderForUnit(u.id, pjMount);
         });
+    } catch (err) {
+        container.innerHTML = `<div class="panel" style="padding:16px;color:var(--text-danger);font-size:13px">Failed to load units: ${err.message}</div>`;
+    }
+}
+
+/* ── FACILITATOR: view-only browse of qualifications tied to their own
+   deals — same accordion learners see (renderUnit(u, false), no
+   quiz/project builder mounts), just scoped differently from admin's
+   system-wide qualification list. ── */
+async function loadFacilitatorMaterialsBrowser() {
+    document.getElementById('mat-overall').style.display = 'none';
+    document.getElementById('qual-title').textContent = 'Materials';
+    document.getElementById('qual-sub').innerHTML = `
+        <select id="admin-qual-select" style="margin-top:6px;font-size:13px;padding:4px 8px">
+          <option value="">Loading qualifications…</option>
+        </select>`;
+
+    try {
+        const res = await fetch('/api/facilitator/qualifications');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+
+        const sel = document.getElementById('admin-qual-select');
+        if (!data.qualifications.length) {
+            sel.innerHTML = `<option value="">No qualifications found among your deals</option>`;
+            return;
+        }
+
+        sel.innerHTML = `<option value="">— Select a qualification —</option>` +
+            data.qualifications.map(q => `<option value="${q.id}">${q.title} (${q.nqf_level})</option>`).join('');
+        sel.onchange = () => loadFacilitatorUnitsForQual(sel.value);
+    } catch (err) {
+        document.getElementById('qual-sub').textContent = 'Failed to load qualifications: ' + err.message;
+    }
+}
+
+async function loadFacilitatorUnitsForQual(qualId) {
+    const container = document.getElementById('mat-units');
+    if (!qualId) { container.innerHTML = ''; return; }
+
+    container.innerHTML = `<div class="panel" style="padding:16px;font-size:13px;color:var(--text-secondary)">Loading units…</div>`;
+
+    try {
+        const res = await fetch(`/api/facilitator/qualifications/${qualId}/units`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+
+        if (!data.units.length) {
+            container.innerHTML = `<div class="panel" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No unit standards found for this qualification yet.</div>`;
+            return;
+        }
+
+        const units = await Promise.all(data.units.map(async u => {
+            const matRes = await fetch(`/api/units/${u.id}/materials`);
+            const matData = await matRes.json();
+            return { ...u, materials: matData.success ? matData.materials : [] };
+        }));
+
+        container.innerHTML = units.map(u => renderUnit(u, false)).join('');
     } catch (err) {
         container.innerHTML = `<div class="panel" style="padding:16px;color:var(--text-danger);font-size:13px">Failed to load units: ${err.message}</div>`;
     }

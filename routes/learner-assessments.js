@@ -85,17 +85,27 @@ router.get('/api/learner/assessments', isAuthenticated, isRole('learner'), async
     quizAttempts.forEach(a => { (attemptsByQuiz[a.quiz_id] ||= []).push(a); });
 
     const { rows: projects } = await pool.query(
-      `SELECT p.id, p.unit_id, p.title, p.description, p.total_marks, p.duration_days,
-              p.brief_file_name, p.brief_file_url AS brief_blob,
-              ps.id AS submission_id, ps.status AS submission_status,
-              ps.file_name, ps.file_size_bytes, ps.started_at, ps.submitted_at,
-              ps.score, ps.feedback
+      `SELECT p.id, p.unit_id, p.title, p.description, p.total_marks, p.pass_mark_pct, p.duration_days, p.max_attempts,
+              p.brief_file_name, p.brief_file_url AS brief_blob
        FROM projects p
        JOIN units u ON u.id = p.unit_id
-       LEFT JOIN project_submissions ps ON ps.project_id = p.id AND ps.learner_id = $2
        WHERE u.qualification_id = $1 AND p.status = 'published'`,
-      [enrolment.qualification_id, learnerId]
+      [enrolment.qualification_id]
     );
+
+    const projectIds = projects.map(p => p.id);
+    const { rows: projectSubs } = projectIds.length
+      ? await pool.query(
+          `SELECT project_id, id, attempt_number, status, file_name, file_size_bytes,
+                  started_at, submitted_at, score, feedback
+           FROM project_submissions
+           WHERE learner_id = $1 AND project_id = ANY($2::uuid[])
+           ORDER BY project_id, attempt_number`,
+          [learnerId, projectIds]
+        )
+      : { rows: [] };
+    const subsByProject = {};
+    projectSubs.forEach(s => { (subsByProject[s.project_id] ||= []).push(s); });
 
     const grade = await getLearnerGrade(pool, learnerId, enrolment.qualification_id);
 
@@ -104,7 +114,7 @@ router.get('/api/learner/assessments', isAuthenticated, isRole('learner'), async
       unit_number: u.unit_number,
       title: u.title,
       quizzes: quizzes.filter(q => q.unit_id === u.id).map(q => formatQuizForList(q, attemptsByQuiz[q.id] || [])),
-      projects: projects.filter(p => p.unit_id === u.id).map(formatProjectForList),
+      projects: projects.filter(p => p.unit_id === u.id).map(p => formatProjectForList(p, subsByProject[p.id] || [])),
     }));
 
     res.json({ success: true, units: unitsOut, grade });
@@ -148,27 +158,48 @@ function formatQuizForList(q, attempts) {
   };
 }
 
-function formatProjectForList(p) {
-  const deadline = p.started_at
-    ? new Date(new Date(p.started_at).getTime() + p.duration_days * 86400000)
+// Same attempt-history shape as formatQuizForList: an "open" attempt
+// (draft or submitted — i.e. not yet graded) is what the upload UI acts
+// on; once it's graded, attempts_used/max_attempts determine whether a
+// new attempt (a fresh upload) can start.
+function formatProjectForList(p, submissions) {
+  const openAttempt = submissions.find(s => s.status === 'draft' || s.status === 'submitted');
+  const graded = submissions.filter(s => s.status === 'graded');
+  const best = graded.reduce((b, s) => (!b || Number(s.score) > Number(b.score)) ? s : b, null);
+
+  const deadlineFor = s => s && s.started_at
+    ? new Date(new Date(s.started_at).getTime() + p.duration_days * 86400000)
     : null;
+
   return {
     id: p.id,
     title: p.title,
     description: p.description,
     total_marks: Number(p.total_marks),
+    pass_mark_pct: Number(p.pass_mark_pct),
     duration_days: p.duration_days,
+    max_attempts: p.max_attempts,
     has_brief: !!p.brief_blob,
-    submission: p.submission_id ? {
-      id: p.submission_id,
-      status: p.submission_status,
-      file_name: p.file_name,
-      file_size_bytes: p.file_size_bytes,
-      started_at: p.started_at,
-      deadline_at: deadline,
-      submitted_at: p.submitted_at,
-      score: p.score != null ? Number(p.score) : null,
-      feedback: p.feedback,
+    attempts_used: submissions.length,
+    can_start_new: !openAttempt && submissions.length < p.max_attempts,
+    best_score: best ? Number(best.score) : null,
+    attempts: submissions.map(s => ({
+      attempt_number: s.attempt_number,
+      status: s.status,
+      score: s.score != null ? Number(s.score) : null,
+      submitted_at: s.submitted_at,
+    })),
+    // "submission" keeps the shape the current frontend already expects
+    // for the open attempt it's actively working with (upload/remove/submit).
+    submission: openAttempt ? {
+      id: openAttempt.id,
+      attempt_number: openAttempt.attempt_number,
+      status: openAttempt.status,
+      file_name: openAttempt.file_name,
+      file_size_bytes: openAttempt.file_size_bytes,
+      started_at: openAttempt.started_at,
+      deadline_at: deadlineFor(openAttempt),
+      submitted_at: openAttempt.submitted_at,
     } : null,
   };
 }
@@ -415,9 +446,11 @@ router.post('/api/learner/quizzes/:id/submit', isAuthenticated, isRole('learner'
 // Uploads straight to blob on file select (not just on final Submit) —
 // per the brief, evidence must be preserved in blob storage tied to the
 // learner's id as soon as it exists, not held only in browser memory.
-// A prior draft file (if any) is replaced: old blob deleted, new one
-// stored, row upserted. started_at is set once, on the FIRST upload,
-// so the per-learner project deadline (duration_days) begins ticking then.
+// If there's already an OPEN attempt (draft/submitted), this replaces
+// its file. If not — e.g. a previous attempt was graded — this starts
+// a NEW attempt, provided attempts_used < max_attempts. started_at is
+// fresh per attempt, so each retry gets its own full duration_days
+// deadline window, same as the first attempt did.
 router.post('/api/learner/projects/:id/upload', isAuthenticated, isRole('learner'), upload.single('file'), async (req, res) => {
   try {
     const learnerId = req.session.user.id;
@@ -425,42 +458,52 @@ router.post('/api/learner/projects/:id/upload', isAuthenticated, isRole('learner
     if (!req.file) return res.status(400).json({ success: false, message: 'No file provided' });
 
     const { rows: projectRows } = await pool.query(
-      `SELECT p.id, u.qualification_id FROM projects p
+      `SELECT p.id, p.max_attempts, u.qualification_id FROM projects p
        JOIN units u ON u.id = p.unit_id
        WHERE p.id = $1 AND p.status = 'published'`,
       [projectId]
     );
     if (!projectRows.length) return res.status(404).json({ success: false, message: 'Project not found' });
+    const project = projectRows[0];
 
     const enrolment = await getActiveEnrolment(learnerId);
-    if (!enrolment || enrolment.qualification_id !== projectRows[0].qualification_id) {
+    if (!enrolment || enrolment.qualification_id !== project.qualification_id) {
       return res.status(403).json({ success: false, message: 'This project is not part of your qualification' });
     }
 
     const { rows: existingRows } = await pool.query(
-      `SELECT * FROM project_submissions WHERE project_id = $1 AND learner_id = $2`,
+      `SELECT * FROM project_submissions WHERE project_id = $1 AND learner_id = $2 ORDER BY attempt_number`,
       [projectId, learnerId]
     );
-    const existing = existingRows[0];
-    if (existing && existing.status !== 'draft') {
-      return res.status(409).json({ success: false, message: 'This project has already been submitted' });
+    const openAttempt = existingRows.find(r => r.status === 'draft' || r.status === 'submitted');
+
+    if (!openAttempt && existingRows.length >= project.max_attempts) {
+      return res.status(409).json({
+        success: false,
+        message: `No attempts remaining — you've used all ${project.max_attempts} attempt${project.max_attempts === 1 ? '' : 's'} for this project`,
+      });
+    }
+    if (openAttempt && openAttempt.status === 'submitted') {
+      return res.status(409).json({ success: false, message: 'This submission is awaiting grading — you can\'t change the file until it\'s graded' });
     }
 
     const blobName = await uploadProjectSubmission(projectId, learnerId, req.file);
-    if (existing?.file_url) {
-      await deleteBlob(existing.file_url).catch(() => {}); // best-effort cleanup of the replaced draft
+    if (openAttempt?.file_url) {
+      await deleteBlob(openAttempt.file_url).catch(() => {}); // best-effort cleanup of the replaced draft
     }
 
+    const nextAttemptNumber = openAttempt ? openAttempt.attempt_number : existingRows.length + 1;
+
     const { rows: saved } = await pool.query(
-      `INSERT INTO project_submissions (project_id, learner_id, file_url, file_name, file_size_bytes, started_at, status)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6, NOW()), 'draft')
-       ON CONFLICT (project_id, learner_id) DO UPDATE SET
+      `INSERT INTO project_submissions (project_id, learner_id, attempt_number, file_url, file_name, file_size_bytes, started_at, status)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'draft')
+       ON CONFLICT (project_id, learner_id, attempt_number) DO UPDATE SET
          file_url = EXCLUDED.file_url,
          file_name = EXCLUDED.file_name,
          file_size_bytes = EXCLUDED.file_size_bytes,
          status = 'draft'
        RETURNING *`,
-      [projectId, learnerId, blobName, req.file.originalname, req.file.size, existing?.started_at || null]
+      [projectId, learnerId, nextAttemptNumber, blobName, req.file.originalname, req.file.size]
     );
 
     res.json({ success: true, submission: saved[0] });
@@ -472,21 +515,18 @@ router.post('/api/learner/projects/:id/upload', isAuthenticated, isRole('learner
 
 // ── DELETE /api/learner/projects/:id/upload ─────────────────────────
 // Removes the staged file before final submission — allowed only while
-// status = 'draft'. Deletes the blob too, since the whole point of the
-// "no evidence lost" requirement is about submitted work, not drafts
-// the learner explicitly chose to discard before pressing Submit.
+// the open attempt's status = 'draft'. Deletes the blob too, since the
+// whole point of the "no evidence lost" requirement is about submitted
+// work, not drafts the learner explicitly chose to discard.
 router.delete('/api/learner/projects/:id/upload', isAuthenticated, isRole('learner'), async (req, res) => {
   try {
     const learnerId = req.session.user.id;
     const { rows } = await pool.query(
-      `SELECT * FROM project_submissions WHERE project_id = $1 AND learner_id = $2`,
+      `SELECT * FROM project_submissions WHERE project_id = $1 AND learner_id = $2 AND status = 'draft'`,
       [req.params.id, learnerId]
     );
-    if (!rows.length) return res.status(404).json({ success: false, message: 'No submission found' });
+    if (!rows.length) return res.status(404).json({ success: false, message: 'No draft submission found' });
     const submission = rows[0];
-    if (submission.status !== 'draft') {
-      return res.status(409).json({ success: false, message: 'Submitted work cannot be removed' });
-    }
 
     if (submission.file_url) await deleteBlob(submission.file_url).catch(() => {});
     await pool.query(
@@ -502,21 +542,18 @@ router.delete('/api/learner/projects/:id/upload', isAuthenticated, isRole('learn
 });
 
 // ── POST /api/learner/projects/:id/submit ───────────────────────────
-// Locks the submission in. Requires a file already staged via /upload.
+// Locks the open attempt in. Requires a file already staged via /upload.
 router.post('/api/learner/projects/:id/submit', isAuthenticated, isRole('learner'), async (req, res) => {
   try {
     const learnerId = req.session.user.id;
     const { rows } = await pool.query(
-      `SELECT * FROM project_submissions WHERE project_id = $1 AND learner_id = $2`,
+      `SELECT * FROM project_submissions WHERE project_id = $1 AND learner_id = $2 AND status = 'draft'`,
       [req.params.id, learnerId]
     );
     if (!rows.length || !rows[0].file_url) {
       return res.status(400).json({ success: false, message: 'Upload a file before submitting' });
     }
     const submission = rows[0];
-    if (submission.status !== 'draft') {
-      return res.status(409).json({ success: false, message: 'This project has already been submitted' });
-    }
 
     const { rows: updated } = await pool.query(
       `UPDATE project_submissions SET status = 'submitted', submitted_at = NOW() WHERE id = $1 RETURNING *`,

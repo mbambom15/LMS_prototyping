@@ -24,6 +24,7 @@
             <div class="nav-item active" data-page="dashboard"><span>Dashboard</span></div>
             <div class="nav-item" data-page="deals"><span>Deal management</span></div>
             <div class="nav-item" data-page="grading"><span>Grading</span><span class="nav-badge" id="grading-count-badge"></span></div>
+            <div class="nav-item" data-page="materials"><span>Materials</span></div>
             <div class="nav-item" data-page="risk"><span>Learners at risk</span><span class="nav-badge" id="risk-count-badge"></span></div>
             <div class="nav-item" data-page="attendance"><span>Attendance records</span></div>
             <div class="nav-item" data-page="feedback-history"><span>Feedback history</span></div>
@@ -87,17 +88,18 @@
                 </div>
             </div>
 
-            <!-- GRADING -->
+            <!-- GRADING — grades projects/project_submissions, the table
+                 pair the quiz/40-60 grade weighting is built on. -->
             <div id="page-grading" class="page">
                 <div class="card">
                     <div class="card-header">
-                        <span class="card-title">Submissions awaiting grading</span>
+                        <span class="card-title">Project submissions</span>
                         <span class="card-sub" id="grading-count-label"></span>
                     </div>
                     <div class="filter-bar">
-                        <input type="text" id="grading-search" placeholder="Search by learner or assessment…">
+                        <input type="text" id="grading-search" placeholder="Search by learner or project…">
                         <select id="grading-status-filter">
-                            <option value="pending">Pending</option>
+                            <option value="submitted">Awaiting grading</option>
                             <option value="all">All statuses</option>
                             <option value="graded">Graded</option>
                         </select>
@@ -107,6 +109,22 @@
                     </div>
                     <div id="grading-list" style="padding: 4px 20px 20px;">
                         <div class="empty-state">Loading…</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MATERIALS (view-only, read from /shared/materials.html in
+                 an iframe-free way isn't possible cross-page, so this just
+                 links out — see materials.js for the actual facilitator
+                 role branch that page now supports) -->
+            <div id="page-materials" class="page">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Materials</span></div>
+                    <div style="padding: 20px;">
+                        <p class="card-sub" style="margin-bottom: 14px;">
+                            View or preview materials for the qualifications tied to your deals.
+                        </p>
+                        <a class="btn btn-primary" href="/shared/materials.html">Open Materials</a>
                     </div>
                 </div>
             </div>

@@ -273,6 +273,52 @@ async function loadSubmissions() {
     }
 }
 
+// ── Compliance report ────────────────────────────────────────
+async function downloadComplianceReport(id) {
+    if (!id) {
+        alert('No learner specified.');
+        return;
+    }
+
+    const btn = document.getElementById('compliance-report-btn');
+    const originalText = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+
+    try {
+        const res = await fetch(`/api/facilitator/learners/${id}/compliance-report.pdf`, {
+            credentials: 'same-origin',
+        });
+
+        if (!res.ok) {
+            let msg = "Couldn't generate compliance report.";
+            try {
+                const data = await res.json();
+                msg = data.message || msg;
+            } catch { /* response wasn't JSON */ }
+            throw new Error(msg);
+        }
+
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        const filename = match ? match[1] : `compliance-report_${id}.pdf`;
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error('downloadComplianceReport error:', err);
+        alert(err.message || "Couldn't download compliance report.");
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+    }
+}
+
 if (learnerId) loadAttendanceSummary();
 if (learnerId) loadSubmissions();
 

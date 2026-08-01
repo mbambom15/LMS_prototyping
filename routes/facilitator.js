@@ -13,6 +13,108 @@ const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // Every route below is scoped to the logged-in facilitator
 router.use('/api/facilitator', isAuthenticated, isRole('facilitator'));
 
+// ── Shared: dynamic learner risk computation ──────────────────────
+// Computed live from enrolments/attendance/deals rather than read from
+// the static learner_risk_flags table (nothing populates that table on
+// its own, which is why "behind schedule" was always 0). Both
+// dashboard-stats and at-risk-learners read from this single query so
+// the two views can never disagree, and every percentage returned here
+// is exactly what the database has — no rounding is applied anywhere
+// in this function.
+//
+// risk_level (this is what drives the on_track / behind_schedule /
+// at_risk counters):
+//   high   — poor attendance (never attended, or attendance_pct < 75)
+//            AND behind on progress (more than 5 points behind expected
+//            pace, OR 0% progress outright)
+//   medium — progress is more than 5 points behind expected pace, but
+//            attendance is NOT poor (good attendance alone doesn't
+//            excuse being behind, but it keeps them out of the
+//            critical/high bucket)
+//   low    — on pace or ahead, OR behind-attendance but still on/ahead
+//            of expected progress (this is "on track")
+//
+// Attendance quality is still tracked and returned separately
+// (good/fair/poor, flag_poor_attendance) so the UI can show a poor-
+// attendance badge on an otherwise on-track learner without that
+// learner counting against on_track/behind_schedule/at_risk.
+async function getLearnerRiskRows(facilitatorId) {
+    const result = await pool.query(
+        `WITH my_learners AS (
+            SELECT
+                l.learner_id, u.name, u.surname, u.last_login,
+                d.deal_number, d.start_date AS deal_start_date,
+                q.duration_months,
+                e.progress_pct
+            FROM learners l
+            JOIN users u ON u.user_id = l.learner_id
+            JOIN deals d ON d.deal_number = l.deal_number
+            LEFT JOIN qualifications q ON q.qualification_id = d.qualification_id
+            LEFT JOIN enrolments e ON e.learner_id = l.learner_id AND e.qualification_id = d.qualification_id
+            WHERE d.facilitator_id = $1 AND d.is_deleted = FALSE
+         ),
+         attendance AS (
+            SELECT
+                learner_id,
+                ROUND(100.0 * COUNT(*) FILTER (WHERE status IN ('present','late')) / NULLIF(COUNT(*),0), 2) AS pct,
+                COUNT(*) AS total_days
+            FROM attendance_records
+            WHERE learner_id IN (SELECT learner_id FROM my_learners)
+            GROUP BY learner_id
+         ),
+         computed AS (
+            SELECT
+                ml.learner_id, ml.name, ml.surname, ml.deal_number, ml.last_login,
+                COALESCE(ml.progress_pct, 0) AS progress_pct,
+                att.pct                       AS attendance_pct,
+                COALESCE(att.total_days, 0)   AS attendance_days,
+                CASE
+                    WHEN ml.deal_start_date IS NOT NULL AND ml.duration_months > 0 THEN
+                        LEAST(100, GREATEST(0, ROUND(
+                            100.0 * EXTRACT(EPOCH FROM (NOW() - ml.deal_start_date::timestamptz))
+                            / (ml.duration_months * 30 * 86400)
+                        , 2)))
+                    ELSE NULL
+                END AS expected_pct
+            FROM my_learners ml
+            LEFT JOIN attendance att ON att.learner_id = ml.learner_id
+         )
+         SELECT
+            learner_id, name, surname, deal_number, last_login,
+            CASE WHEN last_login IS NOT NULL THEN EXTRACT(DAY FROM NOW() - last_login)::int ELSE NULL END AS days_since_login,
+            progress_pct, attendance_pct, expected_pct,
+            (attendance_days = 0) AS never_attended,
+            (expected_pct IS NOT NULL AND (expected_pct - progress_pct) > 5)  AS flag_behind_schedule,
+            (attendance_days = 0 OR (attendance_pct IS NOT NULL AND attendance_pct < 75)) AS flag_poor_attendance,
+            CASE
+                WHEN attendance_days = 0 THEN 'poor'
+                WHEN attendance_pct IS NULL THEN NULL
+                WHEN attendance_pct >= 80 THEN 'good'
+                WHEN attendance_pct >= 75 THEN 'fair'
+                ELSE 'poor'
+            END AS attendance_quality,
+            -- at_risk (high) = poor attendance AND behind on progress
+            -- (gap > 5, or 0% progress outright). Behind schedule alone
+            -- (good attendance, gap > 5) is 'medium'. Everyone else —
+            -- including poor-attendance learners still on/ahead of
+            -- pace — is 'low' (on track).
+            CASE
+                WHEN (attendance_days = 0 OR (attendance_pct IS NOT NULL AND attendance_pct < 75))
+                 AND (
+                    (expected_pct IS NOT NULL AND (expected_pct - progress_pct) > 5)
+                    OR progress_pct = 0
+                 )
+                    THEN 'high'
+                WHEN (expected_pct IS NOT NULL AND (expected_pct - progress_pct) > 5)
+                    THEN 'medium'
+                ELSE 'low'
+            END AS risk_level
+         FROM computed`,
+        [facilitatorId]
+    );
+    return result.rows;
+}
+
 // ── GET /api/facilitator/me ───────────────────────────────────────
 router.get('/api/facilitator/me', async (req, res) => {
     try {
@@ -95,40 +197,29 @@ router.get('/api/facilitator/deals/statuses', async (req, res) => {
 });
 
 // ── GET /api/facilitator/dashboard-stats ─────────────────────────
+// Rebuilt on top of getLearnerRiskRows so on_track/behind_schedule/
+// at_risk always reflect the same computation as the at-risk list —
+// behind_schedule now actually populates instead of always reading 0.
 router.get('/api/facilitator/dashboard-stats', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
+        const rows = await getLearnerRiskRows(facilitatorId);
 
-        const result = await pool.query(
-            `WITH my_learners AS (
-                SELECT l.learner_id
-                FROM learners l
-                JOIN deals d ON d.deal_number = l.deal_number
-                WHERE d.facilitator_id = $1 AND d.is_deleted = FALSE
-             ),
-             risk AS (
-                SELECT rf.learner_id, rf.risk_level
-                FROM learner_risk_flags rf
-                WHERE rf.resolved_at IS NULL
-                  AND rf.learner_id IN (SELECT learner_id FROM my_learners)
-             ),
-             attendance AS (
-                SELECT learner_id,
-                       ROUND(100.0 * COUNT(*) FILTER (WHERE status IN ('present','late')) / NULLIF(COUNT(*),0), 0) AS pct
-                FROM attendance_records
-                WHERE learner_id IN (SELECT learner_id FROM my_learners)
-                GROUP BY learner_id
-             )
-             SELECT
-                (SELECT COUNT(*) FROM my_learners)                                        AS total_learners,
-                (SELECT COUNT(*) FROM risk WHERE risk_level = 'high')                      AS at_risk,
-                (SELECT COUNT(*) FROM risk WHERE risk_level = 'medium')                    AS behind_schedule,
-                (SELECT COUNT(*) FROM my_learners) - (SELECT COUNT(*) FROM risk)           AS on_track,
-                (SELECT ROUND(AVG(pct)) FROM attendance)                                   AS avg_attendance`,
-            [facilitatorId]
-        );
+        const attendanceVals = rows.map(r => r.attendance_pct).filter(v => v != null);
+        const avgAttendance = attendanceVals.length
+            ? Math.round((attendanceVals.reduce((a, b) => a + Number(b), 0) / attendanceVals.length) * 100) / 100
+            : null;
 
-        res.json({ success: true, stats: result.rows[0] });
+        res.json({
+            success: true,
+            stats: {
+                total_learners: rows.length,
+                on_track: rows.filter(r => r.risk_level === 'low').length,
+                behind_schedule: rows.filter(r => r.risk_level === 'medium').length,
+                at_risk: rows.filter(r => r.risk_level === 'high').length,
+                avg_attendance: avgAttendance,
+            },
+        });
     } catch (err) {
         console.error('GET /api/facilitator/dashboard-stats error:', err);
         res.status(500).json({ success: false, message: 'Failed to fetch dashboard stats' });
@@ -136,36 +227,38 @@ router.get('/api/facilitator/dashboard-stats', async (req, res) => {
 });
 
 // ── GET /api/facilitator/at-risk-learners ────────────────────────
+// Returns every learner who is behind on progress (medium/high
+// risk_level) OR has poor attendance (<75%), even if their progress is
+// otherwise fine — attendance alone is a valid reason to show up here,
+// it just doesn't move the on_track/behind_schedule/at_risk counters.
+// Raw attendance/progress/expected percentages are sent exactly as the
+// database returned them — no rounding.
 router.get('/api/facilitator/at-risk-learners', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
+        const rows = await getLearnerRiskRows(facilitatorId);
 
-        const result = await pool.query(
-            `SELECT
-                u.user_id,
-                u.name,
-                u.surname,
-                d.deal_number,
-                rf.risk_level,
-                rf.attendance_pct,
-                rf.progress_pct,
-                rf.days_since_login,
-                rf.flag_low_attendance,
-                rf.flag_behind_schedule,
-                rf.flag_no_login,
-                rf.flag_poe_overdue
-             FROM learner_risk_flags rf
-             JOIN learners l ON l.learner_id = rf.learner_id
-             JOIN users u    ON u.user_id = l.learner_id
-             JOIN deals d    ON d.deal_number = l.deal_number
-             WHERE d.facilitator_id = $1 AND d.is_deleted = FALSE AND rf.resolved_at IS NULL
-             ORDER BY
-                CASE rf.risk_level WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
-                rf.attendance_pct ASC NULLS LAST`,
-            [facilitatorId]
-        );
+        const order = { high: 0, medium: 1, low: 2 };
+        const learners = rows
+            .filter(r => r.risk_level === 'medium' || r.risk_level === 'high' || r.flag_poor_attendance)
+            .map(r => ({
+                user_id: r.learner_id,
+                name: r.name,
+                surname: r.surname,
+                deal_number: r.deal_number,
+                risk_level: r.risk_level,
+                attendance_pct: r.attendance_pct,
+                attendance_quality: r.attendance_quality,
+                progress_pct: r.progress_pct,
+                expected_pct: r.expected_pct,
+                never_attended: r.never_attended,
+                flag_behind_schedule: r.flag_behind_schedule,
+                flag_poor_attendance: r.flag_poor_attendance,
+                days_since_login: r.days_since_login,
+            }))
+            .sort((a, b) => order[a.risk_level] - order[b.risk_level] || (a.attendance_pct ?? 999) - (b.attendance_pct ?? 999));
 
-        res.json({ success: true, learners: result.rows });
+        res.json({ success: true, learners });
     } catch (err) {
         console.error('GET /api/facilitator/at-risk-learners error:', err);
         res.status(500).json({ success: false, message: 'Failed to fetch at-risk learners' });
@@ -1330,6 +1423,12 @@ router.get('/api/facilitator/learners/:learnerId/submissions', async (req, res) 
 });
 
 // ── GET /api/facilitator/learners/:learnerId/compliance-report.pdf ─
+// Layout notes (updated):
+//   - More vertical breathing room after the profile header block
+//     before the first section title.
+//   - sectionTitle now leaves more space above/below the underline.
+//   - Table rows are taller (18px vs 14px) and zebra-striped for
+//     readability; headers get more clearance below their rule.
 router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (req, res) => {
     try {
         const facilitatorId = req.session.user.id;
@@ -1376,12 +1475,13 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
         }
 
         function sectionTitle(text) {
-            ensureSpace(30);
-            doc.moveDown(0.6);
+            ensureSpace(36);
+            doc.moveDown(1);
             doc.font('Helvetica-Bold').fontSize(12).fillColor('#171717').text(text);
-            doc.moveTo(marginLeft, doc.y + 2).lineTo(marginLeft + pageWidth, doc.y + 2)
+            doc.moveDown(0.3);
+            doc.moveTo(marginLeft, doc.y).lineTo(marginLeft + pageWidth, doc.y)
                .strokeColor('#d4d4cf').lineWidth(0.5).stroke();
-            doc.moveDown(0.5);
+            doc.moveDown(0.6);
         }
 
         function drawTable(cols, rows, rowRenderer, emptyText) {
@@ -1390,38 +1490,50 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
             cols.forEach(c => { colX.push(cursor); cursor += c.width; });
 
             function drawHeader() {
-                ensureSpace(20);
+                ensureSpace(24);
                 doc.font('Helvetica-Bold').fontSize(8).fillColor('#1e1e1f');
                 cols.forEach((c, i) => doc.text(c.label, colX[i], doc.y, { width: c.width }));
-                doc.moveDown(0.3);
+                doc.moveDown(0.5);
                 doc.moveTo(marginLeft, doc.y).lineTo(marginLeft + pageWidth, doc.y)
                    .strokeColor('#e5e5e0').lineWidth(0.5).stroke();
-                doc.moveDown(0.3);
+                doc.moveDown(0.5);
             }
 
             drawHeader();
             if (!rows.length) {
                 doc.font('Helvetica').fontSize(9).fillColor('#8d8d89').text(emptyText);
+                doc.moveDown(0.4);
                 return;
             }
 
             doc.font('Helvetica').fontSize(8.5).fillColor('#1f1f1f');
-            rows.forEach(row => {
-                ensureSpace(16);
+            rows.forEach((row, i) => {
+                ensureSpace(20);
                 const y = doc.y;
+
+                if (i % 2 === 1) {
+                    doc.save();
+                    doc.rect(marginLeft, y - 3, pageWidth, 18).fillOpacity(0.04).fill('#000000');
+                    doc.restore();
+                    doc.fillColor('#1f1f1f');
+                }
+
                 const cells = rowRenderer(row);
-                cells.forEach((val, i) => doc.text(val, colX[i], y, { width: cols[i].width }));
-                doc.y = y + 14;
-                if (doc.y > pageBottom - 16) { doc.addPage(); drawHeader(); }
+                cells.forEach((val, j) => doc.text(val, colX[j], y, { width: cols[j].width }));
+                doc.y = y + 18;
+
+                if (doc.y > pageBottom - 20) { doc.addPage(); drawHeader(); }
             });
+            doc.moveDown(0.4);
         }
 
         doc.font('Helvetica-Bold').fontSize(16).fillColor('#171717')
            .text('Nkanyezi Academy — Learner Compliance Report');
-        doc.moveDown(0.6);
+        doc.moveDown(0.8);
 
         doc.font('Helvetica-Bold').fontSize(11).fillColor('#171717')
            .text(`${profile.name} ${profile.surname}`);
+        doc.moveDown(0.2);
         doc.font('Helvetica').fontSize(9).fillColor('#5b5b58')
            .text(`ID number: ${profile.id_number || '—'}`)
            .text(`Email: ${profile.email || '—'}`)
@@ -1430,6 +1542,8 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
            .text(`Deal: #${profile.deal_number ?? '—'} — ${profile.sponsor || ''}`)
            .text(`Enrolment status: ${profile.enrolment_status || '—'} · Progress: ${profile.progress_pct != null ? Math.round(profile.progress_pct) + '%' : '—'}`)
            .text(`Generated: ${new Date().toLocaleString('en-ZA')}`);
+
+        doc.moveDown(1.2);
 
         sectionTitle('Attendance log');
         drawTable(

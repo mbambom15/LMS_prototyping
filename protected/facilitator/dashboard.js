@@ -97,7 +97,7 @@ async function loadDashboard() {
 
         const tbody = document.getElementById('dashboard-risk-rows');
         if (!learners.length) {
-            tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No at-risk learners right now.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No at-risk learners right now.</td></tr>`;
             return;
         }
         tbody.innerHTML = learners.map(l => `
@@ -106,13 +106,14 @@ async function loadDashboard() {
                 <td>${l.deal_number ?? '—'}</td>
                 <td>${l.attendance_pct != null ? l.attendance_pct + '%' : '—'}</td>
                 <td>${l.progress_pct != null ? l.progress_pct + '%' : '—'}</td>
+                <td>${l.expected_pct != null ? l.expected_pct + '%' : '—'}</td>
                 <td>${riskBadge(l.risk_level)}</td>
             </tr>
         `).join('');
     } catch (err) {
         console.error('loadDashboard error:', err);
         document.getElementById('dashboard-risk-rows').innerHTML =
-            `<tr><td colspan="5" class="empty-state">Couldn't load dashboard data.</td></tr>`;
+            `<tr><td colspan="6" class="empty-state">Couldn't load dashboard data.</td></tr>`;
     }
 }
 
@@ -331,7 +332,7 @@ async function loadRiskLearners() {
                     <span class="card-sub">Deal ${l.deal_number ?? '—'}</span>
                 </div>
                 <div class="card-body">
-                    <div class="grid-3cols" style="gap: 12px;">
+                    <div class="grid-3cols" style="gap: 12px; grid-template-columns: repeat(4, 1fr);">
                         <div>
                             <div class="form-label">Attendance</div>
                             <div style="font-size: 24px; font-weight:600;">${l.attendance_pct != null ? l.attendance_pct + '%' : '—'}</div>
@@ -339,6 +340,10 @@ async function loadRiskLearners() {
                         <div>
                             <div class="form-label">Progress</div>
                             <div style="font-size: 24px; font-weight:600;">${l.progress_pct != null ? l.progress_pct + '%' : '—'}</div>
+                        </div>
+                        <div>
+                            <div class="form-label">Expected</div>
+                            <div style="font-size: 24px; font-weight:600;">${l.expected_pct != null ? l.expected_pct + '%' : '—'}</div>
                         </div>
                         <div>
                             <div class="form-label">Last login</div>

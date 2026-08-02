@@ -1,13 +1,4 @@
--- ============================================================
--- Nkanyezi LMS — consolidated schema
--- Cleaned up from a schema file + 5 migrations that had been
--- concatenated together (redundant ALTERs, superseded
--- CREATE OR REPLACE VIEW versions, and two stray debug SELECTs
--- removed). This reflects the final intended state only.
--- Safe to run top-to-bottom on a fresh database.
--- ============================================================
 
--- ---------- full teardown (idempotent) ----------
 DROP VIEW IF EXISTS learner_unit_grades CASCADE;
 DROP VIEW IF EXISTS learner_feedback_history CASCADE;
 DROP VIEW IF EXISTS learner_attendance_log CASCADE;
@@ -48,10 +39,6 @@ DROP TYPE IF EXISTS
   quiz_attempt_status, project_status
 CASCADE;
 
--- ---------- enums ----------
--- feedback_type includes 'message' directly (was added via ALTER TYPE
--- after the fact in the original) — no functional difference, just
--- declared in one place instead of two.
 CREATE TYPE user_role AS ENUM ('learner', 'facilitator', 'assessor', 'admin');
 CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended', 'completed', 'terminated');
 CREATE TYPE nqf_level AS ENUM ('NQF1','NQF2','NQF3','NQF4','NQF5','NQF6','NQF7','NQF8','NQF9','NQF10');
@@ -552,16 +539,6 @@ CREATE TABLE quiz_attempt_answers (
 );
 
 CREATE INDEX idx_quiz_attempt_answers_attempt_id ON quiz_attempt_answers(attempt_id);
-
--- ---------- learner_grades (final version) ----------
--- Quizzes contribute 40% of the qualification grade, projects 60%, each
--- internally weighted by marks. The denominator on each side is EVERY
--- published quiz/project for the qualification (attempted or not) —
--- not just the ones a learner has done — so an unattempted item still
--- counts its full marks against the total instead of being invisible
--- until attempted. Only each learner's BEST attempt per quiz/project
--- counts toward the numerator (a resubmission replaces, not adds to,
--- the previous attempt).
 CREATE OR REPLACE VIEW learner_grades AS
 WITH best_quiz_attempts AS (
   SELECT DISTINCT ON (qa.quiz_id, qa.learner_id)

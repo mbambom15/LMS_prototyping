@@ -416,7 +416,17 @@ async function openMessagesModal() {
 function closeMessagesModal() {
     document.getElementById('messages-modal').style.display = 'none';
 }
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+    document.getElementById('hamburger-btn').classList.toggle('open');
+}
 
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+    document.getElementById('hamburger-btn').classList.remove('open');
+}
 /* ── Init ── */
 window.addEventListener('DOMContentLoaded', async () => {
     await loadUser();

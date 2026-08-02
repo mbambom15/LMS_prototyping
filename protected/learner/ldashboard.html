@@ -9,28 +9,30 @@
 </head>
 
 <body>
-  <!-- ═══════════ HEADER ═══════════ -->
   <header>
-    <span class="logo">Nkanyezi Academy <small>Learner Portal</small></span>
-    <button class="hbtn">Help</button>
-    <button class="hbtn" onclick="handleLogout()">Logout</button>
-    <div class="av" id="header-initials">--</div>
-  </header>
+  <button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <span class="logo">Nkanyezi Academy <small>Learner Portal</small></span>
+  
+  <button class="hbtn" onclick="handleLogout()">Logout</button>
+  <div class="av" id="header-initials">--</div>
+</header>
 
-  <div class="layout">
+<div class="layout">
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
-    <!-- ═══════════ SIDEBAR ═══════════ -->
-    <aside class="sidebar">
-      <div class="slabel">My learning</div>
-      <div class="sitem active" onclick="setActive(this)">Dashboard</div>
-      <div class="sitem" onclick="navigateTo(this, '/shared/materials.html')">Materials</div>
-      <div class="sitem" onclick="navigateTo(this, '/learner/assessments.html')">Assessments</div>
-      <div class="slabel">My record</div>
-      <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
-      <div class="sitem" onclick="setActive(this)">Results</div>
-      <div class="slabel">Support</div>
-      <div class="sitem" onclick="openMessagesModal()">Messages</div>
-    </aside>
+  <aside class="sidebar" id="sidebar">
+    <div class="slabel">My learning</div>
+    <div class="sitem active" onclick="setActive(this); closeSidebar()">Dashboard</div>
+    <div class="sitem" onclick="navigateTo(this, '/shared/materials.html'); closeSidebar()">Materials</div>
+    <div class="sitem" onclick="navigateTo(this, '/learner/assessments.html'); closeSidebar()">Assessments</div>
+    <div class="slabel">My record</div>
+    <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html'); closeSidebar()">Attendance</div>
+    
+    <div class="slabel">Support</div>
+    <div class="sitem" onclick="openMessagesModal(); closeSidebar()">Messages</div>
+  </aside>
 
     <!-- ═══════════ MAIN ═══════════ -->
     <main>

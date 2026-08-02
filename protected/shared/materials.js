@@ -33,7 +33,7 @@ const SIDEBARS = {
       <div class="sitem" onclick="navigateTo(this, '/learner/assessments.html')">Assessments</div>
       <div class="slabel">My record</div>
       <div class="sitem" onclick="navigateTo(this, '/learner/attendance.html')">Attendance</div>
-      <div class="sitem" onclick="setActive(this)">Results</div>
+      
       <div class="slabel">Support</div>
       <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Messages</div>`,
     admin: `

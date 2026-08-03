@@ -94,6 +94,10 @@ router.get('/api/learner/assessments', isAuthenticated, isRole('learner'), async
     );
 
     const projectIds = projects.map(p => p.id);
+    // feedback is now selected alongside the rest of each submission's
+    // fields — previously omitted here, which meant it never made it
+    // into formatProjectForList()'s output below, and the learner never
+    // saw feedback a facilitator had written when grading.
     const { rows: projectSubs } = projectIds.length
       ? await pool.query(
           `SELECT project_id, id, attempt_number, status, file_name, file_size_bytes,
@@ -183,10 +187,15 @@ function formatProjectForList(p, submissions) {
     attempts_used: submissions.length,
     can_start_new: !openAttempt && submissions.length < p.max_attempts,
     best_score: best ? Number(best.score) : null,
+    // Feedback tied to the best (highest-scoring graded) attempt — the
+    // one actually counting toward the learner's overall grade — as a
+    // convenience field, in addition to per-attempt feedback below.
+    best_feedback: best ? (best.feedback || null) : null,
     attempts: submissions.map(s => ({
       attempt_number: s.attempt_number,
       status: s.status,
       score: s.score != null ? Number(s.score) : null,
+      feedback: s.feedback || null,
       submitted_at: s.submitted_at,
     })),
     // "submission" keeps the shape the current frontend already expects

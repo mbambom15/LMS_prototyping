@@ -151,6 +151,17 @@ const LearnerAssessments = (() => {
       return `<span class="quiz-attempt-badge ${cls}">${label}</span>`;
     }).join(' ');
 
+    // Facilitator feedback, shown per graded attempt (not just the best
+    // one) — a re-graded or retried attempt may each carry its own note,
+    // so all of them surface here rather than only the highest score.
+    const feedbackBlocks = p.attempts
+      .filter(a => a.status === 'graded' && a.feedback)
+      .map(a => `
+        <div class="as-card-desc" style="margin-top:6px">
+          <strong>Attempt ${a.attempt_number} feedback:</strong> ${escHtml(a.feedback)}
+        </div>`)
+      .join('');
+
     return `
       <div class="as-card" data-project-card="${p.id}">
         <div class="as-card-main">
@@ -162,6 +173,7 @@ const LearnerAssessments = (() => {
             ${p.has_brief ? ` · <a href="#" data-brief-link="${p.id}">Download brief</a>` : ''}
           </div>
           ${badges ? `<div class="quiz-attempt-badges">${badges}</div>` : ''}
+          ${feedbackBlocks}
           ${sub && sub.deadline_at ? `<div class="as-card-deadline" data-deadline="${sub.deadline_at}">Loading deadline…</div>` : ''}
           <div class="pj-upload-area" id="pj-upload-${p.id}"></div>
         </div>

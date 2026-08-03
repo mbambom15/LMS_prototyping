@@ -38,11 +38,11 @@ const SIDEBARS = {
       <div class="sitem" onclick="navigateTo(this, '/learner/ldashboard.html')">Messages</div>`,
     admin: `
       <div class="slabel">Admin</div>
-      <div class="sitem" onclick="navigateTo(this, '/admin/admin.html')">Back to dashboard</div>
+      <div class="sitem" onclick="navigateTo(this, '/admin/dashboard.html')">Back to dashboard</div>
       <div class="sitem active" onclick="setActive(this)">Materials &amp; quizzes</div>`,
     facilitator: `
       <div class="slabel">Facilitator</div>
-      <div class="sitem" onclick="navigateTo(this, '/facilitator/dashboard.html')">Back to dashboard</div>
+      <div class="sitem" onclick="navigateTo(this, '/facilitator/fdashboard.html')">Back to dashboard</div>
       <div class="sitem active" onclick="setActive(this)">Materials</div>`,
 };
 

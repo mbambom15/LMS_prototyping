@@ -1,0 +1,99 @@
+<!-- admin/attendance.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance — Nkanyezi Academy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="deal-detail.css">
+    <style>
+        .att-pill { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: capitalize; }
+        .att-present { background: rgba(34,197,94,.12); color: var(--green); }
+        .att-absent  { background: rgba(239,68,68,.12); color: var(--red); }
+        .att-late    { background: rgba(245,158,11,.12); color: #a55c00; }
+        .att-excused { background: rgba(0,0,0,.06); color: var(--text-2); }
+        .load-more-wrap { display: flex; justify-content: center; padding: 16px 0; }
+    </style>
+</head>
+<body>
+
+    <nav class="topbar">
+        <div class="breadcrumb">
+            <a href="dashboard.html">Admin</a>
+            <span class="breadcrumb-sep">›</span>
+            <a href="#" id="bc-learner-link">Learner</a>
+            <span class="breadcrumb-sep">›</span>
+            <span class="breadcrumb-current">Attendance</span>
+        </div>
+        <div class="topbar-actions">
+            <a class="btn-outline" id="back-link" href="#">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                Back to profile
+            </a>
+        </div>
+    </nav>
+
+    <div class="page-wrap">
+
+        <div class="deal-header" id="attendance-header">
+            <div class="deal-eyebrow">Attendance</div>
+            <div class="deal-title" id="learner-name">Loading…</div>
+            <div class="deal-meta-row" id="learner-meta-row">
+                <span style="color:var(--text-3);font-size:12px">Fetching information…</span>
+            </div>
+        </div>
+
+        <div class="stats-strip" id="stats-strip">
+            <div class="stat-cell"><div class="stat-label">Present</div><div class="stat-val" id="stat-present" style="color:var(--green)">—</div></div>
+            <div class="stat-cell"><div class="stat-label">Absent</div><div class="stat-val" id="stat-absent" style="color:var(--red)">—</div></div>
+            <div class="stat-cell"><div class="stat-label">Late</div><div class="stat-val" id="stat-late">—</div></div>
+            <div class="stat-cell"><div class="stat-label">Excused</div><div class="stat-val" id="stat-excused">—</div></div>
+        </div>
+
+        <div class="section-head">
+            <span class="section-title">Attendance history</span>
+            <span class="section-count" id="record-count">0 records</span>
+        </div>
+
+        <div class="filter-bar">
+            <select class="filter-select" id="filter-status" onchange="applyFilter()">
+                <option value="">All statuses</option>
+                <option value="present">Present</option>
+                <option value="absent">Absent</option>
+                <option value="late">Late</option>
+                <option value="excused">Excused</option>
+            </select>
+        </div>
+
+        <div class="learner-table-wrap">
+            <table class="lt" id="attendance-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Check-in</th>
+                        <th>Check-out</th>
+                        <th>Geo verified</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody id="attendance-tbody">
+                    <tr><td colspan="6"><div class="empty-state"><div class="empty-title">Loading…</div></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="load-more-wrap">
+            <button class="btn-outline" id="load-more-btn" onclick="loadMore()" style="display:none">Load more</button>
+        </div>
+
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+</body>
+</html>
+<script src="attendance.js"></script>

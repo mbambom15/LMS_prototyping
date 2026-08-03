@@ -6,6 +6,8 @@ const { isAuthenticated, isRole } = require('../middleware/auth');
 const { calculateExpectedProgress } = require('../utils/progressCalculator');
 const { getLearnerGrade } = require('../utils/gradeCalculator');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 router.get('/api/learner/qualification', isAuthenticated, isRole('learner'), async (req, res) => {
   try {
     const learnerId = req.session.user.id;
@@ -171,6 +173,97 @@ router.post('/api/learner/feedback', isAuthenticated, isRole('learner'), async (
   } catch (err) {
     console.error('POST /api/learner/feedback error:', err);
     res.status(500).json({ success: false, message: 'Failed to send message' });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════
+   GET /api/learners/:id/profile
+   Admin-facing — full learner record for the admin profile page:
+   personal details, current deal/qualification, enrolment status,
+   and an attendance summary so admin doesn't need a second call
+   just to see if this learner is chronically absent.
+══════════════════════════════════════════════════════════ */
+router.get('/api/learners/:id/profile', isAuthenticated, isRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) return res.status(400).json({ success: false, message: 'Invalid learner ID' });
+
+  try {
+    const learnerRes = await pool.query(
+      `SELECT
+        u.user_id, u.name, u.surname, u.email, u.phone_number,
+        u.alternative_number, u.status, u.last_login, u.created_at,
+        l.deal_number,
+        d.sponsor,
+        q.title AS qualification_title, q.nqf_level, q.seta,
+        e.id AS enrolment_id, e.status AS enrolment_status,
+        e.progress_pct, e.start_date AS enrolment_start,
+        e.expected_end_date, e.actual_end_date,
+        e.employer_name, e.workplace_address
+      FROM users u
+      JOIN learners l   ON l.learner_id = u.user_id
+      LEFT JOIN deals d          ON d.deal_number = l.deal_number
+      LEFT JOIN qualifications q ON q.qualification_id = d.qualification_id
+      LEFT JOIN enrolments e     ON e.learner_id = u.user_id
+                                 AND e.qualification_id = d.qualification_id
+      WHERE u.user_id = $1 AND u.is_deleted = FALSE`,
+      [id]
+    );
+
+    if (!learnerRes.rows.length) {
+      return res.status(404).json({ success: false, message: 'Learner not found' });
+    }
+
+    const attendanceSummary = await pool.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE status = 'present') AS present_count,
+        COUNT(*) FILTER (WHERE status = 'absent')  AS absent_count,
+        COUNT(*) FILTER (WHERE status = 'late')     AS late_count,
+        COUNT(*) FILTER (WHERE status = 'excused')  AS excused_count,
+        COUNT(*)                                    AS total_days
+      FROM attendance_records
+      WHERE learner_id = $1`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      learner: learnerRes.rows[0],
+      attendance_summary: attendanceSummary.rows[0],
+    });
+  } catch (err) {
+    console.error('GET /api/learners/:id/profile error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch learner profile' });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════
+   GET /api/learners/:id/attendance?limit=60&offset=0
+   Admin-facing — attendance history, newest first. Capped +
+   paginated since a learner's full history can span many months.
+══════════════════════════════════════════════════════════ */
+router.get('/api/learners/:id/attendance', isAuthenticated, isRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) return res.status(400).json({ success: false, message: 'Invalid learner ID' });
+
+  const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 60, 1), 365);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+        attendance_date, status, check_in_time, check_out_time,
+        geo_verified, notes
+      FROM attendance_records
+      WHERE learner_id = $1
+      ORDER BY attendance_date DESC
+      LIMIT $2 OFFSET $3`,
+      [id, limit, offset]
+    );
+
+    res.json({ success: true, attendance: rows });
+  } catch (err) {
+    console.error('GET /api/learners/:id/attendance error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance history' });
   }
 });
 

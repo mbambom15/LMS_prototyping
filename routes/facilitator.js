@@ -1474,14 +1474,25 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
             if (doc.y + needed > pageBottom) doc.addPage();
         }
 
+        // Full-width colored bar section header (matches the department
+        // report template style). Critically, this ALWAYS pins x back to
+        // marginLeft — drawTable's cell-by-cell writes leave doc.x sitting
+        // wherever the last column was, so without this reset the next
+        // section title inherits that stale x and renders shifted right
+        // (this was the "Feedback history" / "Units" bug).
+        const SECTION_BAR_COLOR = '#1b5e74';
+        const SECTION_BAR_HEIGHT = 24;
+
         function sectionTitle(text) {
-            ensureSpace(36);
-            doc.moveDown(1);
-            doc.font('Helvetica-Bold').fontSize(12).fillColor('#171717').text(text);
-            doc.moveDown(0.3);
-            doc.moveTo(marginLeft, doc.y).lineTo(marginLeft + pageWidth, doc.y)
-               .strokeColor('#d4d4cf').lineWidth(0.5).stroke();
-            doc.moveDown(0.6);
+            ensureSpace(SECTION_BAR_HEIGHT + 24);
+            doc.moveDown(1.1);
+            const barY = doc.y;
+            doc.rect(marginLeft, barY, pageWidth, SECTION_BAR_HEIGHT).fill(SECTION_BAR_COLOR);
+            doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(12)
+               .text(text, marginLeft + 10, barY + 6, { width: pageWidth - 20 });
+            doc.fillColor('#1f1f1f');
+            doc.x = marginLeft;
+            doc.y = barY + SECTION_BAR_HEIGHT + 14;
         }
 
         function drawTable(cols, rows, rowRenderer, emptyText) {
@@ -1490,19 +1501,23 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
             cols.forEach(c => { colX.push(cursor); cursor += c.width; });
 
             function drawHeader() {
-                ensureSpace(24);
+                ensureSpace(26);
+                const headerY = doc.y;
                 doc.font('Helvetica-Bold').fontSize(8).fillColor('#1e1e1f');
-                cols.forEach((c, i) => doc.text(c.label, colX[i], doc.y, { width: c.width }));
-                doc.moveDown(0.5);
+                cols.forEach((c, i) => doc.text(c.label, colX[i], headerY, { width: c.width }));
+                doc.x = marginLeft;
+                doc.y = headerY + 12;
                 doc.moveTo(marginLeft, doc.y).lineTo(marginLeft + pageWidth, doc.y)
                    .strokeColor('#e5e5e0').lineWidth(0.5).stroke();
                 doc.moveDown(0.5);
+                doc.x = marginLeft;
             }
 
             drawHeader();
             if (!rows.length) {
-                doc.font('Helvetica').fontSize(9).fillColor('#8d8d89').text(emptyText);
-                doc.moveDown(0.4);
+                doc.font('Helvetica').fontSize(9).fillColor('#8d8d89').text(emptyText, marginLeft);
+                doc.moveDown(0.6);
+                doc.x = marginLeft;
                 return;
             }
 
@@ -1524,26 +1539,32 @@ router.get('/api/facilitator/learners/:learnerId/compliance-report.pdf', async (
 
                 if (doc.y > pageBottom - 20) { doc.addPage(); drawHeader(); }
             });
-            doc.moveDown(0.4);
+
+            // Pin x back to the margin after the last cell write, and add
+            // extra breathing room before whatever comes next.
+            doc.x = marginLeft;
+            doc.moveDown(0.8);
         }
 
         doc.font('Helvetica-Bold').fontSize(16).fillColor('#171717')
-           .text('Nkanyezi Academy — Learner Compliance Report');
-        doc.moveDown(0.8);
+           .text('Nkanyezi Academy — Learner Compliance Report', marginLeft);
+        doc.x = marginLeft;
+        doc.moveDown(0.6);
+
+        sectionTitle('Learner profile');
 
         doc.font('Helvetica-Bold').fontSize(11).fillColor('#171717')
-           .text(`${profile.name} ${profile.surname}`);
-        doc.moveDown(0.2);
+           .text(`${profile.name} ${profile.surname}`, marginLeft);
+        doc.moveDown(0.25);
         doc.font('Helvetica').fontSize(9).fillColor('#5b5b58')
-           .text(`ID number: ${profile.id_number || '—'}`)
-           .text(`Email: ${profile.email || '—'}`)
-           .text(`Qualification: ${profile.qualification_title || '—'} (${profile.nqf_level || '—'})`)
-           .text(`SETA: ${profile.seta || '—'}`)
-           .text(`Deal: #${profile.deal_number ?? '—'} — ${profile.sponsor || ''}`)
-           .text(`Enrolment status: ${profile.enrolment_status || '—'} · Progress: ${profile.progress_pct != null ? Math.round(profile.progress_pct) + '%' : '—'}`)
-           .text(`Generated: ${new Date().toLocaleString('en-ZA')}`);
-
-        doc.moveDown(1.2);
+           .text(`ID number: ${profile.id_number || '—'}`, marginLeft)
+           .text(`Email: ${profile.email || '—'}`, marginLeft)
+           .text(`Qualification: ${profile.qualification_title || '—'} (${profile.nqf_level || '—'})`, marginLeft)
+           .text(`SETA: ${profile.seta || '—'}`, marginLeft)
+           .text(`Deal: #${profile.deal_number ?? '—'} — ${profile.sponsor || ''}`, marginLeft)
+           .text(`Enrolment status: ${profile.enrolment_status || '—'} · Progress: ${profile.progress_pct != null ? Math.round(profile.progress_pct) + '%' : '—'}`, marginLeft)
+           .text(`Generated: ${new Date().toLocaleString('en-ZA')}`, marginLeft);
+        doc.x = marginLeft;
 
         sectionTitle('Attendance log');
         drawTable(

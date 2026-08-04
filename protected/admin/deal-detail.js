@@ -154,7 +154,7 @@ function renderLearnerRow(l) {
         <div class="action-group">
           <a class="ab ab-blue" href="learner-profile.html?id=${l.user_id}">Profile</a>
           <a class="ab" href="attendance.html?learner=${l.user_id}">Attendance</a>
-          <a class="ab" href="/admin/feedback?learner=${l.user_id}">Feedback</a>
+           <a class="ab" href="feedback.html?learner=${l.user_id}">Feedback</a>
           <a class="ab" href="mailto:${escHtml(l.email || '')}">Email</a>
           <button class="ab ab-red" onclick="confirmUnlink('${l.user_id}', '${escHtml(name)}')">Unlink</button>
         </div>

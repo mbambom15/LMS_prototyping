@@ -26,17 +26,6 @@ router.get('/api/learner/qualification', isAuthenticated, isRole('learner'), asy
   }
 });
 
-// ── GET /api/learner/progress ─────────────────────────────────────
-// Actual progress vs expected progress (deal start_date + qualification
-// duration, unchanged). actual_pct is computed LIVE from learner_grades
-// via getLearnerGrade — not read from enrolments.progress_pct — so this
-// is always correct the instant it's requested, with no dependency on
-// something else having triggered a sync first (a quiz submit, a future
-// facilitator grading action, an admin publishing a new quiz that
-// changes the denominator). enrolments.progress_pct still gets kept in
-// sync by syncEnrolmentProgress() for other consumers (admin/facilitator
-// views, risk flags) that read it directly, but this endpoint no longer
-// depends on that being fresh.
 router.get('/api/learner/progress', isAuthenticated, isRole('learner'), async (req, res) => {
   try {
     const learnerId = req.session.user.id;
@@ -236,11 +225,7 @@ router.get('/api/learners/:id/profile', isAuthenticated, isRole('admin'), async 
   }
 });
 
-/* ══════════════════════════════════════════════════════════
-   GET /api/learners/:id/attendance?limit=60&offset=0
-   Admin-facing — attendance history, newest first. Capped +
-   paginated since a learner's full history can span many months.
-══════════════════════════════════════════════════════════ */
+
 router.get('/api/learners/:id/attendance', isAuthenticated, isRole('admin'), async (req, res) => {
   const { id } = req.params;
   if (!UUID_RE.test(id)) return res.status(400).json({ success: false, message: 'Invalid learner ID' });
@@ -264,6 +249,71 @@ router.get('/api/learners/:id/attendance', isAuthenticated, isRole('admin'), asy
   } catch (err) {
     console.error('GET /api/learners/:id/attendance error:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch attendance history' });
+  }
+});
+
+router.get('/api/learners/:id/feedback', isAuthenticated, isRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) return res.status(400).json({ success: false, message: 'Invalid learner ID' });
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT f.id, f.parent_id, f.subject, f.message, f.feedback_type, f.from_role,
+              COALESCE(f.sent_at, f.created_at) AS sent_at, f.read_at,
+              u.name AS from_name, u.surname AS from_surname
+       FROM feedback f
+       JOIN users u ON u.user_id = f.from_user_id
+       WHERE f.to_learner_id = $1
+       ORDER BY COALESCE(f.sent_at, f.created_at) DESC`,
+      [id]
+    );
+
+    res.json({ success: true, feedback: rows });
+  } catch (err) {
+    console.error('GET /api/learners/:id/feedback error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch feedback history' });
+  }
+});
+
+
+router.post('/api/learners/:id/feedback', isAuthenticated, isRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) return res.status(400).json({ success: false, message: 'Invalid learner ID' });
+
+  const { subject, message, feedback_type } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ success: false, message: 'Message cannot be empty' });
+  }
+
+  try {
+    const dealRes = await pool.query(
+      `SELECT d.facilitator_id
+       FROM learners l
+       JOIN deals d ON d.deal_number = l.deal_number
+       WHERE l.learner_id = $1 AND d.is_deleted = FALSE`,
+      [id]
+    );
+    const facilitatorId = dealRes.rows[0]?.facilitator_id;
+
+    if (!facilitatorId) {
+      return res.status(400).json({
+        success: false,
+        message: 'This learner\'s deal has no facilitator assigned — assign one first before sending feedback',
+      });
+    }
+
+    const adminId = req.session.user.id;
+    const inserted = await pool.query(
+      `INSERT INTO feedback (to_learner_id, facilitator_id, from_user_id, from_role, feedback_type, subject, message, is_auto_generated, sent_at, delivery_method)
+       VALUES ($1, $2, $3, 'facilitator', $4, $5, $6, FALSE, NOW(), 'portal')
+       RETURNING id, subject, message, from_role, sent_at`,
+      [id, facilitatorId, adminId, feedback_type || 'general', subject?.trim() || null, message.trim()]
+    );
+
+    res.json({ success: true, feedback: inserted.rows[0] });
+  } catch (err) {
+    console.error('POST /api/learners/:id/feedback error:', err);
+    res.status(500).json({ success: false, message: 'Failed to send feedback' });
   }
 });
 
